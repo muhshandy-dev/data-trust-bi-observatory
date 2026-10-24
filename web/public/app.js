@@ -338,7 +338,7 @@ function renderHeatmap(cells) {
   $("heatmap-table").replaceChildren(table(
     ["Hari dan jam", { text: "Perjalanan", cls: "num" }, { text: "Rata-rata tarif", cls: "num" }],
     top.map((c) => [`${DOW_LONG[c.iso_dow - 1]}, ${hourLabel(c.hour)}`, fmtInt(c.trips_trusted), fmtUsd(c.avg_fare)]),
-    { caption: "Delapan jam tersibuk" }));
+    { caption: "Delapan jam tersibuk", scroll: true }));
 }
 
 function renderPayments(rows) {

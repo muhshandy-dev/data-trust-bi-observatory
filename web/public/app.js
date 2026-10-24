@@ -1,5 +1,7 @@
-// Data Trust & BI Observatory dashboard. Reads the JSON written by `data-trust build` from ./data/.
+// Data Trust Observatory dashboard. Reads the JSON written by `data-trust build` from ./data/.
 // Plain ES modules, no build step. All numbers shown here come straight from those files.
+// User-facing text avoids engineering terms: "rule" is "pemeriksaan", error/warning severity is
+// "masalah kritis" / "masalah ringan", a row is "perjalanan".
 import { h, icon, showTip, hideTip, lineChart, stackedColumns, heatmap } from "./js/charts.js";
 import {
   fmtInt, fmtPct, fmtDec, fmtUsd, fmtUsd0, fmtCompact, fmtMonth, fmtMonthShort, fmtDay, fmtDayLong,
@@ -18,9 +20,7 @@ const state = {
   data: null,
   month: null,
   ruleFilter: "all",
-  ruleSearch: "",
-  ruleSort: { key: "rate", dir: -1 },
-  openRules: new Set(),
+  openRule: null, // only one check is open at a time, so the list stays short on phones
   zoneSearch: "",
   zoneBorough: "",
   zoneSort: { key: "trips_trusted", dir: -1 },
@@ -29,7 +29,7 @@ const state = {
 
 // ---------------------------------------------------------------------------------------- helpers
 const byMonth = (rows) => Object.fromEntries(rows.map((r) => [r.month, r]));
-const ruleTitle = (r) => RULES[r.id]?.title ?? r.name.replaceAll("_", " ");
+const ruleTitle = (r) => RULES[r.id]?.title ?? r.description;
 const tipLine = (cls, label, value) => `<span class="tip-row"><i class="sw ${cls}"></i>${label}<b>${value}</b></span>`;
 
 function classify(report) {
@@ -37,9 +37,9 @@ function classify(report) {
   const warnOnly = report.trusted_rows - report.clean_rows;
   const failed = report.rows - report.trusted_rows;
   return [
-    { key: "clean", cls: "ok", label: "Tanpa temuan aturan", value: clean },
-    { key: "warn", cls: "warn", label: "Hanya peringatan", value: warnOnly },
-    { key: "failed", cls: "bad", label: "Gagal pemeriksaan kritis", value: failed },
+    { key: "clean", cls: "ok", label: "Tanpa temuan", value: clean },
+    { key: "warn", cls: "warn", label: "Masalah ringan saja", value: warnOnly },
+    { key: "failed", cls: "bad", label: "Masalah kritis", value: failed },
   ];
 }
 
@@ -89,22 +89,22 @@ function emptyState(title, body) {
 // ---------------------------------------------------------------------------------------- ringkasan
 function renderKpis(report) {
   const kpis = [
-    { tone: "neutral", ic: "database", label: "Total Baris Data", value: fmtInt(report.rows),
-      sub: "Seluruh baris file Parquet bulan ini, sebelum pemeriksaan.",
-      info: "Jumlah baris di file resmi TLC untuk bulan terpilih. Belum ada baris yang dikeluarkan." },
-    { tone: "trusted", ic: "shield-check", label: "Lolos Pemeriksaan Kritis", value: fmtPct(report.trusted_rate),
-      sub: `${fmtInt(report.trusted_rows)} baris tanpa pelanggaran aturan kritis.`,
-      info: "Persentase baris yang tidak melanggar satu pun aturan kritis (R01 sampai R09, R11). Baris ini dipakai untuk metrik lolos kritis. Lolos tidak berarti datanya pasti benar." },
-    { tone: "ok", ic: "badge-check", label: "Tanpa Temuan Aturan", value: fmtPct(report.clean_rate),
-      sub: `${fmtInt(report.clean_rows)} baris tidak memicu aturan apa pun.`,
-      info: "Persentase baris yang tidak memicu ke-12 aturan, termasuk aturan peringatan R10 dan R12. Indikator ini lebih ketat daripada Lolos Pemeriksaan Kritis." },
-    { tone: "neutral", ic: "copy", label: "Baris Duplikat", value: fmtInt(report.duplicate_rows),
-      sub: "Salinan persis baris lain. Dihitung, belum dikeluarkan.",
-      info: "Baris yang seluruh kolomnya sama persis dengan baris lain di file yang sama." },
+    { tone: "neutral", ic: "database", label: "Total Data", value: fmtInt(report.rows),
+      sub: "Perjalanan tercatat bulan ini.",
+      info: "Semua perjalanan dalam data resmi TLC bulan ini, sebelum diperiksa." },
+    { tone: "trusted", ic: "shield-check", label: "Lolos Pemeriksaan", value: fmtPct(report.trusted_rate),
+      sub: `${fmtInt(report.trusted_rows)} perjalanan tanpa masalah kritis.`,
+      info: "Perjalanan tanpa masalah kritis. Data inilah yang dipakai untuk analisis. Lolos tidak menjamin data pasti benar." },
+    { tone: "ok", ic: "badge-check", label: "Tanpa Temuan", value: fmtPct(report.clean_rate),
+      sub: `${fmtInt(report.clean_rows)} perjalanan tanpa masalah apa pun.`,
+      info: "Perjalanan yang lolos seluruh 12 pemeriksaan, termasuk pemeriksaan masalah ringan." },
+    { tone: "neutral", ic: "copy", label: "Data Duplikat", value: fmtInt(report.duplicate_rows),
+      sub: "Perjalanan yang tercatat lebih dari sekali.",
+      info: "Perjalanan yang seluruh isinya sama persis dengan perjalanan lain. Dihitung, tetapi belum dihapus." },
   ];
   $("kpis").replaceChildren(...kpis.map((k) =>
     h("article", { class: `kpi kpi-${k.tone}` },
-      h("div", { class: "kpi-head" }, h("span", { class: "kpi-icon" }, icon(k.ic)), h("h3", { class: "kpi-label", text: k.label }), infoButton(k.info, k.label)),
+      h("div", { class: "kpi-head" }, h("span", { class: "kpi-icon" }, icon(k.ic, "icon icon-sm")), h("h3", { class: "kpi-label", text: k.label }), infoButton(k.info, k.label)),
       h("p", { class: "kpi-value", text: k.value }),
       h("p", { class: "kpi-sub", text: k.sub }))));
 }
@@ -119,7 +119,7 @@ function renderClassBar(report) {
   });
   const list = h("ul", { class: "stack-legend" }, parts.map((p) =>
     h("li", {}, h("i", { class: `sw sw-${p.cls}` }), h("span", { class: "stack-label", text: p.label }),
-      h("span", { class: "stack-pct", text: fmtPct(p.value / report.rows) }), h("span", { class: "stack-count", text: `${fmtInt(p.value)} baris` }))));
+      h("span", { class: "stack-pct", text: fmtPct(p.value / report.rows) }), h("span", { class: "stack-count", text: `${fmtInt(p.value)} perjalanan` }))));
   $("class-bar").replaceChildren(bar, list);
 }
 
@@ -130,15 +130,21 @@ function renderFacts(report, metrics) {
   const topVendor = vendor?.groups.filter((g) => g.rows / report.rows >= 0.05).sort((a, b) => b.rate - a.rate)[0];
   const raw = metrics.raw, tr = metrics.trusted;
   const facts = [
-    { ic: "octagon-alert", cls: "bad", html: `Aturan kritis dengan pelanggaran terbanyak adalah <b>${crit.id} ${escapeHtml(ruleTitle(crit))}</b>, ${fmtPct(crit.rate)} baris.` },
-    { ic: "circle-alert", cls: "warn", html: `Aturan peringatan terbesar adalah <b>${warn.id} ${escapeHtml(ruleTitle(warn))}</b>, ${fmtPct(warn.rate)} baris${topVendor ? `. Pada vendor ${escapeHtml(groupLabel("vendor_id", topVendor.key))}, angkanya ${fmtPct(topVendor.rate, 1)}` : ""}.` },
-    { ic: "map-pin", cls: "info", html: `Rata-rata jarak mentah <b>${fmtDec(raw.avg_distance_mi)} mil</b>, setelah pemeriksaan kritis <b>${fmtDec(tr.avg_distance_mi)} mil</b> (${fmtDelta(raw.avg_distance_mi, tr.avg_distance_mi)}).` },
-    { ic: "credit-card", cls: "info", html: `Pendapatan (total_amount) lolos kritis <b>${fmtUsd0(tr.revenue)}</b> dari ${fmtUsd0(raw.revenue)} mentah (${fmtDelta(raw.revenue, tr.revenue)}).` },
+    { ic: "octagon-alert", cls: "bad", head: "Masalah kritis terbanyak",
+      html: `<b>${escapeHtml(ruleTitle(crit))}</b> pada ${fmtPct(crit.rate)} perjalanan.` },
+    { ic: "circle-alert", cls: "warn", head: "Masalah ringan terbanyak",
+      html: `<b>${escapeHtml(ruleTitle(warn))}</b> pada ${fmtPct(warn.rate)} perjalanan${topVendor ? `. Pada penyedia ${escapeHtml(groupLabel("vendor_id", topVendor.key))}, ${fmtPct(topVendor.rate, 1)} perjalanannya terdampak` : ""}.` },
+    { ic: "map-pin", cls: "info", head: "Dampak pada rata-rata jarak",
+      html: `Turun dari ${fmtDec(raw.avg_distance_mi)} menjadi <b>${fmtDec(tr.avg_distance_mi)} mil</b> (${fmtDelta(raw.avg_distance_mi, tr.avg_distance_mi)}) setelah data bermasalah dikeluarkan.` },
+    { ic: "credit-card", cls: "info", head: "Dampak pada pendapatan",
+      html: `Dari ${fmtUsd0(raw.revenue)} menjadi <b>${fmtUsd0(tr.revenue)}</b> (${fmtDelta(raw.revenue, tr.revenue)}).` },
   ];
+  // distance can rise in other datasets; keep the verb honest
+  if (tr.avg_distance_mi > raw.avg_distance_mi) facts[2].html = facts[2].html.replace("Turun dari", "Naik dari");
   $("facts").replaceChildren(...facts.map((f) => {
     const li = h("li", { class: `fact fact-${f.cls}` }, h("span", { class: "fact-icon" }, icon(f.ic, "icon icon-sm")));
     const p = h("p");
-    p.innerHTML = f.html;
+    p.innerHTML = `<span class="fact-head">${f.head}</span>${f.html}`;
     li.append(p);
     return li;
   }));
@@ -158,28 +164,28 @@ function renderClassChart() {
     }),
     selected: state.month,
     gaps,
-    ariaLabel: "Proporsi kategori kualitas baris per bulan",
-    tipBody: (it) => `<strong>${fmtMonth(it.key)}</strong>${it.parts.map((p) => tipLine(`sw-${p.cls}`, p.label, fmtPct(p.value / it.total))).join("")}<span class="tip-foot">${fmtInt(it.total)} baris</span>`,
+    ariaLabel: "Komposisi kualitas data per bulan",
+    tipBody: (it) => `<strong>${fmtMonth(it.key)}</strong>${it.parts.map((p) => tipLine(`sw-${p.cls}`, p.label, fmtPct(p.value / it.total))).join("")}<span class="tip-foot">${fmtInt(it.total)} perjalanan</span>`,
     onSelect: (m) => setMonth(m),
   });
   $("class-table").replaceChildren(table(
-    ["Bulan", { text: "Total baris", cls: "num" }, { text: "Tanpa temuan", cls: "num" }, { text: "Hanya peringatan", cls: "num" }, { text: "Gagal kritis", cls: "num" }],
+    ["Bulan", { text: "Total", cls: "num" }, { text: "Tanpa temuan", cls: "num" }, { text: "Masalah ringan", cls: "num" }, { text: "Masalah kritis", cls: "num" }],
     months.map((m) => { const r = state.data.reportBy[m]; return [fmtMonth(m), fmtInt(r.rows), ...classify(r).map((p) => `${fmtPct(p.value / r.rows)} (${fmtInt(p.value)})`)]; }),
-    { caption: "Kategori kualitas per bulan", scroll: true }));
+    { caption: "Komposisi kualitas data per bulan", scroll: true }));
 }
 
 function renderPattern() {
   const { months, reportBy } = state.data;
   const ids = reportBy[months[0]].rules.map((r) => r.id);
-  const head = [h("th", { scope: "col", class: "sticky-col", text: "Aturan" }),
+  const head = [h("th", { scope: "col", class: "sticky-col", text: "Pemeriksaan" }),
     ...months.map((m) => h("th", { scope: "col", class: "num" + (m === state.month ? " is-selected" : ""), text: fmtMonthShort(m) }))];
   const rows = ids.map((id) => {
     const rates = months.map((m) => reportBy[m].rules.find((r) => r.id === id));
     const max = Math.max(...rates.map((r) => r.rate), 1e-9);
     const sev = rates[0].severity;
     return h("tr", {},
-      h("th", { scope: "row", class: "sticky-col" }, h("span", { class: `dot dot-${sev === "error" ? "bad" : "warn"}`, title: SEVERITY[sev].label }),
-        h("span", { class: "rule-id", text: id }), h("span", { class: "rule-name", text: ruleTitle(rates[0]) })),
+      h("th", { scope: "row", class: "sticky-col" }, h("span", { class: `dot dot-${sev === "error" ? "bad" : "warn"}`, title: `Masalah ${SEVERITY[sev].label.toLowerCase()}` }),
+        h("span", { class: "rule-name", text: ruleTitle(rates[0]) })),
       ...rates.map((r, i) => {
         const td = h("td", { class: "num heat-td" + (months[i] === state.month ? " is-selected" : ""), text: fmtRate(r.rate) });
         td.style.setProperty("--v", String(r.rate ? Math.max(6, Math.round((r.rate / max) * 100)) : 0));
@@ -187,123 +193,111 @@ function renderPattern() {
         return td;
       }));
   });
-  $("pattern-table").replaceChildren(table(head, rows, { cls: "table-pattern", caption: "Persentase pelanggaran per aturan dan bulan", scroll: true }));
+  $("pattern-table").replaceChildren(table(head, rows, { cls: "table-pattern", caption: "Persentase temuan per pemeriksaan dan bulan", scroll: true }));
 }
 
-// ---------------------------------------------------------------------------------------- aturan
-function renderRulesChart(report) {
-  const rules = [...report.rules].sort((a, b) => b.rate - a.rate);
-  const max = Math.max(...rules.map((r) => r.rate), 1e-9);
-  const list = h("ul", { class: "hbars", "aria-label": "Persentase pelanggaran per aturan" });
-  rules.forEach((r) => {
-    const sev = r.severity === "error" ? "bad" : "warn";
-    const fill = h("span", { class: `hbar-fill ${sev}` });
-    fill.style.width = (r.violations ? Math.max((r.rate / max) * 100, 0.6) : 0) + "%";
-    const li = h("li", { class: "hbar", tabindex: 0, "aria-label": `${r.id} ${ruleTitle(r)}, ${SEVERITY[r.severity].label}: ${fmtPct(r.rate, 3)}, ${fmtInt(r.violations)} baris` },
-      h("span", { class: "hbar-label" }, h("span", { class: "rule-id", text: r.id }), h("span", { text: ruleTitle(r) })),
-      h("span", { class: "hbar-track" }, fill),
-      h("span", { class: "hbar-value", text: fmtRate(r.rate) }));
-    const body = `<strong>${r.id} ${escapeHtml(ruleTitle(r))}</strong>${tipLine(`sw-${sev}`, SEVERITY[r.severity].label, fmtPct(r.rate, 3))}<span class="tip-foot">${fmtInt(r.violations)} baris melanggar</span>`;
-    li.addEventListener("mousemove", (e) => showTip(body, e.clientX, e.clientY, li));
-    li.addEventListener("mouseleave", () => hideTip(li));
-    li.addEventListener("focus", () => { const b = li.getBoundingClientRect(); showTip(body, b.left + b.width / 2, b.top + 4, li); });
-    li.addEventListener("blur", () => hideTip(li));
-    list.append(li);
-  });
-  $("rules-chart").replaceChildren(list);
-}
-
+// ---------------------------------------------------------------------------------------- pemeriksaan
+// Where a check fires most, by provider and payment method. Each share is "flagged trips of that
+// group / all trips of that group", so it is labelled per group, never as a share of the month.
 function breakdownBlock(report, rule) {
   const blocks = report.breakdowns.filter((b) => b.rule === rule.id);
-  if (!blocks.length) {
-    return h("p", { class: "muted", text: "Rincian per vendor dan jenis pembayaran dihitung khusus untuk aturan peringatan, karena pelanggarannya terkonsentrasi pada sumber tertentu." });
-  }
-  return h("div", { class: "breakdowns" }, blocks.map((b) =>
-    h("div", { class: "breakdown" },
-      h("p", { class: "breakdown-title", text: b.by === "vendor_id" ? "Per vendor" : "Per jenis pembayaran" }),
-      h("ul", { class: "mini-bars" }, [...b.groups].sort((x, y) => y.rate - x.rate).map((g) => {
-        const fill = h("span", { class: "mini-fill warn" });
-        fill.style.width = g.rate * 100 + "%";
-        return h("li", {}, h("span", { class: "mini-label", text: `${groupLabel(b.by, g.key)} (${g.key})` }),
-          h("span", { class: "mini-track" }, fill),
-          h("span", { class: "mini-value", text: fmtPct(g.rate, 1) }),
-          h("span", { class: "mini-rows", text: `${fmtInt(g.violations)} dari ${fmtInt(g.rows)}` }));
-      })))));
-}
-
-function renderRulesTable(report) {
-  const q = state.ruleSearch.trim().toLowerCase();
-  let rules = report.rules.filter((r) => state.ruleFilter === "all" || r.severity === state.ruleFilter);
-  if (q) rules = rules.filter((r) => `${r.id} ${r.name} ${ruleTitle(r)}`.toLowerCase().includes(q));
-  const { key, dir } = state.ruleSort;
-  rules.sort((a, b) => (key === "id" ? a.id.localeCompare(b.id) : a[key] - b[key]) * dir);
-  $("rule-count").textContent = `${rules.length} dari ${report.rules.length} aturan`;
-
-  const sortTh = (k, text, cls) => {
-    const active = state.ruleSort.key === k;
-    const th = h("th", { scope: "col", class: cls, "aria-sort": active ? (state.ruleSort.dir > 0 ? "ascending" : "descending") : "none" });
-    th.append(h("button", { type: "button", class: "sort-btn", onclick: () => { state.ruleSort = { key: k, dir: active ? -state.ruleSort.dir : k === "id" ? 1 : -1 }; renderRulesTable(report); } },
-      text, icon(active ? (state.ruleSort.dir > 0 ? "arrow-up" : "arrow-down") : "chevrons-up-down", "icon icon-xs")));
-    return th;
-  };
-  const head = [sortTh("id", "Aturan"), h("th", { scope: "col", text: "Tingkat" }), sortTh("violations", "Baris melanggar", "num"), sortTh("rate", "Persentase", "num col-bar"), h("th", { scope: "col", class: "col-action" }, h("span", { class: "sr-only", text: "Detail" }))];
-  if (!rules.length) {
-    $("rules-table").replaceChildren(emptyState("Tidak ada aturan yang cocok", "Ubah kata kunci atau filter tingkat aturan."));
-    return;
-  }
-  const max = Math.max(...report.rules.map((r) => r.rate), 1e-9);
-  const rows = [];
-  rules.forEach((r) => {
-    const open = state.openRules.has(r.id);
-    const detailId = `rule-detail-${r.id}`;
-    const sev = r.severity === "error" ? "bad" : "warn";
-    const toggle = () => { open ? state.openRules.delete(r.id) : state.openRules.add(r.id); renderRulesTable(report); $(`btn-${r.id}`)?.focus(); };
-    const fill = h("span", { class: `cell-bar-fill ${sev}` });
-    fill.style.width = (r.violations ? Math.max((r.rate / max) * 100, 1) : 0) + "%";
-    const status = r.violations === 0
-      ? h("span", { class: "badge badge-ok" }, icon("circle-check", "icon icon-xs"), "Nihil")
-      : h("span", { class: `badge badge-${sev}` }, icon(sev === "bad" ? "octagon-alert" : "circle-alert", "icon icon-xs"), SEVERITY[r.severity].label);
-    rows.push(h("tr", { class: "row-main" + (open ? " is-open" : "") },
-      h("th", { scope: "row" }, h("span", { class: "rule-id", text: r.id }), h("span", { class: "rule-title", text: ruleTitle(r) }), h("code", { class: "rule-tech", text: r.name })),
-      h("td", {}, status, r.violations === 0 ? h("span", { class: "sev-note", text: SEVERITY[r.severity].label }) : null),
-      h("td", { class: "num", text: fmtInt(r.violations) }),
-      h("td", { class: "num col-bar" }, h("span", { class: "cell-bar" }, h("span", { class: "cell-bar-track" }, fill), h("span", { text: fmtRate(r.rate) }))),
-      h("td", { class: "col-action" }, h("button", { type: "button", class: "icon-btn icon-btn-sm", id: `btn-${r.id}`, "aria-expanded": String(open), "aria-controls": detailId, "aria-label": `${open ? "Tutup" : "Buka"} detail ${r.id}`, onclick: toggle }, icon("chevron-down", "icon icon-sm chev")))));
-    if (open) {
-      rows.push(h("tr", { class: "row-detail", id: detailId },
-        h("td", { colspan: 5 },
-          h("div", { class: "detail" },
-            h("div", { class: "detail-def" },
-              h("p", { class: "detail-label", text: "Definisi" }), h("p", { text: RULES[r.id]?.detail ?? r.description }),
-              h("p", { class: "detail-label", text: "Tingkat" }), h("p", { text: `${SEVERITY[r.severity].long}. ${SEVERITY[r.severity].hint}` }),
-              h("p", { class: "detail-label", text: "Definisi asli di pipeline" }), h("p", { class: "muted", text: r.description })),
-            h("div", { class: "detail-break" }, breakdownBlock(report, r))))));
-    }
+  if (!blocks.length) return null;
+  const tables = blocks.map((b) => {
+    const rows = [...b.groups].sort((x, y) => y.rate - x.rate);
+    return h("div", { class: "breakdown" },
+      h("p", { class: "breakdown-title", text: b.by === "vendor_id" ? "Per penyedia data" : "Per cara bayar" }),
+      h("table", { class: "mini-table" },
+        h("thead", {}, h("tr", {}, h("th", { scope: "col", text: b.by === "vendor_id" ? "Penyedia" : "Cara bayar" }), h("th", { scope: "col", class: "num", text: "Terdampak" }))),
+        h("tbody", {}, rows.map((g) => h("tr", {},
+          h("th", { scope: "row", text: groupLabel(b.by, g.key) }),
+          h("td", { class: "num" }, h("b", { text: fmtPct(g.rate, 1) }), h("span", { class: "muted", text: ` dari ${fmtInt(g.rows)}` })))))));
   });
-  $("rules-table").replaceChildren(table(head, rows, { cls: "table-rules", caption: "Ringkasan aturan validasi" }));
+  return h("details", { class: "more" },
+    h("summary", {}, icon("chevron-right", "icon icon-xs more-chev"), "Rincian per penyedia dan cara bayar"),
+    h("p", { class: "more-note", text: "Persentase dihitung dari jumlah perjalanan masing-masing penyedia atau cara bayar." }),
+    h("div", { class: "breakdowns" }, tables));
 }
 
-// ---------------------------------------------------------------------------------------- perjalanan
-function renderMetrics(m) {
+// One line on where a warning check concentrates: the group (provider or payment method holding at
+// least 1% of the month's trips) with the highest rate, shown only when it clearly stands out.
+function hotspot(report, rule) {
+  const cands = report.breakdowns.filter((b) => b.rule === rule.id).flatMap((b) =>
+    b.groups.filter((g) => g.rows / report.rows >= 0.01).map((g) => ({ ...g, by: b.by })));
+  const g = cands.sort((x, y) => y.rate - x.rate)[0];
+  if (!g || g.rate < rule.rate * 1.5) return null;
+  const who = g.by === "vendor_id" ? `perjalanan dari ${groupLabel("vendor_id", g.key)}` : `pembayaran ${groupLabel("payment_type", g.key).toLowerCase()}`;
+  return `Paling sering pada ${who}: ${fmtPct(g.rate, 1)} di antaranya terdampak.`;
+}
+
+// One accordion item per check, largest share first. Name, level, trips affected and share come
+// first; the explanation, the internal code and the breakdown sit inside.
+function renderChecks(report) {
+  const rules = report.rules.filter((r) => state.ruleFilter === "all" || r.severity === state.ruleFilter).sort((a, b) => b.rate - a.rate);
+  const max = Math.max(...report.rules.map((r) => r.rate), 1e-9);
+  $("checks-note").textContent = `Persentase dihitung dari ${fmtInt(report.rows)} perjalanan pada ${fmtMonth(state.month)}. Temuan berarti data perlu diperhatikan, belum tentu salah.`;
+  $("checks").replaceChildren(...rules.map((r) => {
+    const open = state.openRule === r.id;
+    const sev = r.severity === "error" ? "bad" : "warn";
+    const panelId = `check-${r.id}`;
+    const fill = h("span", { class: `check-fill ${sev}` });
+    fill.style.width = (r.violations ? Math.max((r.rate / max) * 100, 1.5) : 0) + "%";
+    const toggle = () => {
+      state.openRule = open ? null : r.id;
+      renderChecks(report);
+      const btn = $(`btn-${r.id}`);
+      btn?.focus({ preventScroll: true });
+      // keep the tapped row in view below the sticky header after the list re-renders
+      if (btn && btn.getBoundingClientRect().top < document.querySelector(".topbar").offsetHeight) btn.scrollIntoView({ block: "start" });
+    };
+    const head = h("button", { type: "button", class: "check-head", id: `btn-${r.id}`, "aria-expanded": String(open), "aria-controls": panelId, onclick: toggle },
+      h("span", { class: "check-main" },
+        h("span", { class: "check-title", text: ruleTitle(r) }),
+        h("span", { class: "check-meta" },
+          h("span", { class: `badge badge-${sev}`, text: SEVERITY[r.severity].label }),
+          h("span", { text: r.violations ? `${fmtInt(r.violations)} perjalanan` : "Tidak ditemukan" }))),
+      h("span", { class: "check-value" },
+        h("span", { class: "check-pct", text: fmtRate(r.rate) }),
+        h("span", { class: "check-track", "aria-hidden": "true" }, fill)),
+      icon("chevron-down", "icon icon-sm chev"));
+    const item = h("li", { class: "check" + (open ? " is-open" : "") }, head);
+    if (open) {
+      const spot = r.severity === "warning" ? hotspot(report, r) : null;
+      item.append(h("div", { class: "check-body", id: panelId },
+        h("p", { text: RULES[r.id]?.detail ?? r.description }),
+        h("p", { class: `check-impact ${sev}`, text: SEVERITY[r.severity].impact }),
+        spot ? h("p", { text: spot }) : null,
+        breakdownBlock(report, r),
+        h("p", { class: "check-code", text: `Kode pemeriksaan ${r.id}` })));
+    }
+    return item;
+  }));
+}
+
+function renderMetrics(m, report) {
   const defs = [
-    ["Jumlah perjalanan", "trips", fmtInt, "Perjalanan dengan waktu jemput di dalam bulan."],
-    ["Pendapatan (total_amount)", "revenue", fmtUsd0, "Termasuk tip, pajak, dan surcharge."],
-    ["Rata-rata tarif", "avg_fare", fmtUsd, "Rata-rata fare_amount."],
-    ["Rata-rata jarak", "avg_distance_mi", (x) => `${fmtDec(x)} mil`, "Sangat dipengaruhi pencilan jarak ekstrem."],
-    ["Rata-rata durasi", "avg_duration_min", (x) => `${fmtDec(x, 1)} menit`, "Selisih waktu turun dan jemput."],
-    ["Rata-rata tip (kartu kredit)", "avg_tip_rate", (x) => fmtPct(x, 1), "Tip dibagi tarif, hanya pembayaran kartu."],
+    ["Jumlah perjalanan", "trips", fmtInt, "outside"],
+    ["Total pendapatan", "revenue", fmtUsd0, "Termasuk tip, pajak, dan biaya tambahan."],
+    ["Rata-rata tarif", "avg_fare", fmtUsd, "Tarif dasar, belum termasuk tip."],
+    ["Rata-rata jarak", "avg_distance_mi", (x) => `${fmtDec(x)} mil`, "Paling terpengaruh data jarak ekstrem."],
+    ["Rata-rata durasi", "avg_duration_min", (x) => `${fmtDec(x, 1)} menit`, null],
+    ["Rata-rata tip", "avg_tip_rate", (x) => fmtPct(x, 1), "Persentase dari tarif, kartu kredit saja."],
   ];
-  $("metrics").replaceChildren(h("div", { class: "metric-grid" }, defs.map(([label, key, f, note]) => {
+  $("metrics").replaceChildren(h("div", { class: "metric-grid" }, defs.map(([label, key, f, note0]) => {
+    let note = note0;
     const raw = m.raw[key], tr = m.trusted[key];
     const d = raw ? (tr - raw) / raw : 0;
+    if (note === "outside") {
+      const n = report.rows - m.raw.trips;
+      note = n ? `Tidak termasuk ${fmtInt(n)} perjalanan dengan waktu jemput kosong atau di luar bulan ini.` : null;
+    }
     return h("div", { class: "metric" },
       h("p", { class: "metric-label", text: label }),
       h("div", { class: "metric-values" },
-        h("div", {}, h("span", { class: "metric-tag", text: "Mentah" }), h("span", { class: "metric-raw", text: raw == null ? "n/a" : f(raw) })),
-        h("div", {}, h("span", { class: "metric-tag tag-trusted", text: "Lolos kritis" }), h("span", { class: "metric-trusted", text: tr == null ? "n/a" : f(tr) }))),
+        h("div", {}, h("span", { class: "metric-tag", text: "Semua data" }), h("span", { class: "metric-raw", text: raw == null ? "Tidak ada" : f(raw) })),
+        h("div", {}, h("span", { class: "metric-tag tag-trusted", text: "Lolos pemeriksaan" }), h("span", { class: "metric-trusted", text: tr == null ? "Tidak ada" : f(tr) }))),
       h("p", { class: "metric-foot" },
-        h("span", { class: "delta" }, icon(d > 0 ? "arrow-up" : "arrow-down", "icon icon-xs"), fmtDelta(raw, tr)),
-        h("span", { class: "muted", text: note })));
+        h("span", { class: "delta", title: "Perubahan dibanding semua data" }, icon(d > 0 ? "arrow-up" : "arrow-down", "icon icon-xs"), fmtDelta(raw, tr)),
+        note ? h("span", { class: "muted", text: note }) : null));
   })));
 }
 
@@ -311,20 +305,20 @@ function renderDaily(days) {
   lineChart($("daily-chart"), {
     labels: days.map((d) => d.date),
     series: [
-      { name: "Mentah", cls: "raw", values: days.map((d) => d.trips_raw) },
-      { name: "Lolos kritis", cls: "trusted", values: days.map((d) => d.trips_trusted), area: true },
+      { name: "Semua data", cls: "raw", values: days.map((d) => d.trips_raw) },
+      { name: "Lolos pemeriksaan", cls: "trusted", values: days.map((d) => d.trips_trusted), area: true },
     ],
     yMax: Math.max(...days.map((d) => d.trips_raw), 1) * 1.05,
     yFmt: fmtCompact,
     xFmt: fmtDay,
     tipTitle: fmtDayLong,
-    ariaLabel: `Perjalanan harian ${fmtMonth(state.month)}, mentah dan lolos kritis. Gunakan tombol panah kiri dan kanan untuk berpindah hari.`,
-    tipRow: (i) => tipLine("sw-raw", "Mentah", fmtInt(days[i].trips_raw)) + tipLine("sw-trusted", "Lolos kritis", fmtInt(days[i].trips_trusted)),
+    ariaLabel: `Perjalanan per hari, ${fmtMonth(state.month)}. Gunakan tombol panah kiri dan kanan untuk berpindah hari.`,
+    tipRow: (i) => tipLine("sw-raw", "Semua data", fmtInt(days[i].trips_raw)) + tipLine("sw-trusted", "Lolos pemeriksaan", fmtInt(days[i].trips_trusted)),
   });
   $("daily-table").replaceChildren(table(
-    ["Tanggal", { text: "Mentah", cls: "num" }, { text: "Lolos kritis", cls: "num" }, { text: "Pendapatan lolos kritis", cls: "num" }],
+    ["Tanggal", { text: "Semua data", cls: "num" }, { text: "Lolos pemeriksaan", cls: "num" }, { text: "Pendapatan (lolos)", cls: "num" }],
     days.map((d) => [fmtDay(d.date), fmtInt(d.trips_raw), fmtInt(d.trips_trusted), fmtUsd0(d.revenue_trusted)]),
-    { caption: "Perjalanan harian", scroll: true }));
+    { caption: "Perjalanan per hari", scroll: true }));
 }
 
 function renderHeatmap(cells) {
@@ -334,7 +328,7 @@ function renderHeatmap(cells) {
     rows: DOW_SHORT,
     cols: Array.from({ length: 24 }, (_, j) => String(j).padStart(2, "0")),
     value: (i, j) => get(i, j)?.trips_trusted ?? 0,
-    ariaLabel: "Peta panas perjalanan lolos kritis menurut hari dan jam. Rincian tersedia di tabel jam tersibuk.",
+    ariaLabel: "Jumlah perjalanan menurut hari dan jam. Rincian tersedia di tabel jam tersibuk.",
     cellLabel: (i, j) => {
       const c = get(i, j);
       return `<strong>${DOW_LONG[i]}, ${hourLabel(j)}</strong>${tipLine("sw-trusted", "Perjalanan", fmtInt(c?.trips_trusted ?? 0))}${c ? tipLine("sw-raw", "Rata-rata tarif", fmtUsd(c.avg_fare)) : ""}`;
@@ -351,14 +345,14 @@ function renderPayments(rows) {
   const total = rows.reduce((s, r) => s + r.trips_trusted, 0) || 1;
   const sorted = [...rows].sort((a, b) => b.trips_trusted - a.trips_trusted);
   const max = sorted[0]?.trips_trusted || 1;
-  $("payments").replaceChildren(h("ul", { class: "hbars hbars-compact", "aria-label": "Perjalanan lolos kritis per jenis pembayaran" }, sorted.map((r) => {
+  $("payments").replaceChildren(h("ul", { class: "hbars hbars-compact", "aria-label": "Perjalanan per cara bayar" }, sorted.map((r) => {
     const fill = h("span", { class: "hbar-fill trusted" });
     fill.style.width = (r.trips_trusted / max) * 100 + "%";
     return h("li", { class: "hbar" },
-      h("span", { class: "hbar-label" }, h("span", { text: groupLabel("payment_type", r.payment_type) }), h("span", { class: "rule-id", text: `kode ${r.payment_type}` })),
+      h("span", { class: "hbar-label" }, h("span", { text: groupLabel("payment_type", r.payment_type) })),
       h("span", { class: "hbar-track" }, fill),
       h("span", { class: "hbar-value" }, h("b", { text: fmtPct(r.trips_trusted / total, 1) }), h("span", { class: "muted", text: fmtInt(r.trips_trusted) })));
-  })), h("p", { class: "card-note", text: "Hanya perjalanan lolos pemeriksaan kritis. Flex fare (kode 0) adalah tarif yang disepakati di muka." }));
+  })));
 }
 
 function renderZones(all) {
@@ -378,7 +372,7 @@ function renderZones(all) {
   more.hidden = filtered || rows.length <= 10;
   more.textContent = state.zoneAll ? "Tampilkan 10 teratas" : `Tampilkan semua ${fmtInt(rows.length)} zona`;
   if (!shown.length) {
-    $("zones-table").replaceChildren(emptyState("Zona tidak ditemukan", "Coba kata kunci lain atau pilih semua borough."));
+    $("zones-table").replaceChildren(emptyState("Zona tidak ditemukan", "Coba kata kunci lain atau pilih semua wilayah."));
     return;
   }
   const max = ranked[0].trips_trusted || 1;
@@ -389,31 +383,19 @@ function renderZones(all) {
       text, icon(active ? (dir > 0 ? "arrow-up" : "arrow-down") : "chevrons-up-down", "icon icon-xs")));
     return th;
   };
-  const head = [sortTh("rank", "#", "num col-rank"), sortTh("zone", "Zona"), sortTh("borough", "Borough"), sortTh("trips_trusted", "Perjalanan", "num col-bar"), sortTh("avg_fare", "Rata-rata tarif", "num"), sortTh("avg_tip_rate", "Rata-rata tip", "num")];
+  const head = [sortTh("rank", "#", "num col-rank"), sortTh("zone", "Zona"), sortTh("borough", "Wilayah"), sortTh("trips_trusted", "Perjalanan", "num col-bar"), sortTh("avg_fare", "Rata-rata tarif", "num"), sortTh("avg_tip_rate", "Rata-rata tip", "num")];
   const body = shown.map((z) => {
     const fill = h("span", { class: "cell-bar-fill trusted" });
     fill.style.width = (z.trips_trusted / max) * 100 + "%";
     return h("tr", {},
       h("td", { class: "num col-rank muted", text: String(z.rank) }),
       h("th", { scope: "row", text: z.zone ?? `Zona ${z.zone_id}` }),
-      h("td", { text: z.borough ?? "n/a" }),
+      h("td", { text: z.borough ?? "Tidak diketahui" }),
       h("td", { class: "num col-bar" }, h("span", { class: "cell-bar" }, h("span", { class: "cell-bar-track" }, fill), h("span", { text: fmtInt(z.trips_trusted) }))),
       h("td", { class: "num", text: fmtUsd(z.avg_fare) }),
-      h("td", { class: "num", text: z.avg_tip_rate == null ? "n/a" : fmtPct(z.avg_tip_rate, 1) }));
+      h("td", { class: "num", text: z.avg_tip_rate == null ? "Tidak ada" : fmtPct(z.avg_tip_rate, 1) }));
   });
   $("zones-table").replaceChildren(table(head, body, { cls: "table-zones", caption: "Zona penjemputan", scroll: true }));
-}
-
-function renderSources() {
-  const { meta } = state.data;
-  $("sources-table").replaceChildren(table(
-    ["Bulan", "File", { text: "Baris", cls: "num" }, { text: "Ukuran", cls: "num" }, "SHA-256"],
-    meta.months.map((m) => {
-      const file = `yellow_tripdata_${m}.parquet`;
-      const s = meta.sources[file];
-      return [fmtMonth(m), h("td", {}, h("code", { text: file })), fmtInt(s.rows), `${fmtDec(s.bytes / 1048576, 1)} MiB`, h("td", {}, h("code", { class: "hash", title: s.sha256, text: `${s.sha256.slice(0, 12)}…` }))];
-    }),
-    { caption: "File sumber dan checksum", scroll: true }));
 }
 
 // ---------------------------------------------------------------------------------------- orchestration
@@ -423,15 +405,13 @@ function renderMonth() {
   const metrics = state.data.metricsBy[m];
   document.querySelectorAll(".month-label").forEach((n) => { n.textContent = fmtMonth(m); });
   renderKpis(report);
-  renderJourney(report, metrics);
   renderSpark();
   renderClassBar(report);
   renderFacts(report, metrics);
   renderClassChart();
   renderPattern();
-  renderRulesChart(report);
-  renderRulesTable(report);
-  renderMetrics(metrics);
+  renderChecks(report);
+  renderMetrics(metrics, report);
   renderDaily(state.data.dailyBy[m].days);
   renderHeatmap(state.data.hourlyBy[m].cells);
   renderPayments(state.data.paymentsBy[m].payments);
@@ -450,20 +430,13 @@ function setMonth(m) {
   renderMonth();
 }
 
-function renderJourney(report, metrics) {
-  const top = [...report.rules].sort((a, b) => b.rate - a.rate)[0];
-  $("j1").textContent = `${fmtPct(report.trusted_rate)} lolos kritis, ${fmtPct(report.clean_rate)} tanpa temuan`;
-  $("j2").textContent = `${top.id} ${ruleTitle(top)}: ${fmtRate(top.rate)}`;
-  $("j3").textContent = `Rata-rata jarak ${fmtDelta(metrics.raw.avg_distance_mi, metrics.trusted.avg_distance_mi)}, pendapatan ${fmtDelta(metrics.raw.revenue, metrics.trusted.revenue)}`;
-}
-
 function renderSpark() {
   const { months, reportBy } = state.data;
   $("spark").replaceChildren(...months.map((m) => {
     const r = reportBy[m];
     const bar = h("span", { class: "spark-fill" });
     bar.style.height = r.trusted_rate * 100 + "%";
-    return h("button", { type: "button", class: "spark-col" + (m === state.month ? " is-selected" : ""), "aria-pressed": String(m === state.month), "aria-label": `${fmtMonth(m)}: ${fmtPct(r.trusted_rate)} lolos pemeriksaan kritis. Pilih bulan ini.`, onclick: () => setMonth(m) },
+    return h("button", { type: "button", class: "spark-col" + (m === state.month ? " is-selected" : ""), "aria-pressed": String(m === state.month), "aria-label": `${fmtMonth(m)}: ${fmtPct(r.trusted_rate)} lolos pemeriksaan. Pilih bulan ini.`, onclick: () => setMonth(m) },
       h("span", { class: "spark-val", text: fmtPct(r.trusted_rate, 1) }), h("span", { class: "spark-track" }, bar), h("span", { class: "spark-label" }, h("span", { text: fmtMonthShort(m).split(" ")[0] }), h("span", { class: "spark-year", text: m.slice(0, 4) })));
   }));
 }
@@ -471,11 +444,10 @@ function renderSpark() {
 function renderHeader() {
   const { meta, months } = state.data;
   const totalRows = Object.values(meta.sources).reduce((s, x) => s + x.rows, 0);
-  $("chip-period").textContent = `Periode ${periodText(months)}`;
+  $("chip-period").textContent = periodText(months, true);
   $("scope-rows").textContent = fmtInt(totalRows);
   $("scope-months").textContent = String(months.length);
   $("scope-rules").textContent = String(state.data.reportBy[months[0]].rules.length);
-  $("chip-status").textContent = `Hasil pipeline v${meta.pipeline_version}, ${Object.keys(meta.sources).length} file sumber dengan checksum SHA-256`;
   $("period-text").textContent = periodText(months, true);
   const select = $("month");
   select.replaceChildren(...months.map((m) => h("option", { value: m, text: fmtMonth(m) })));
@@ -484,13 +456,13 @@ function renderHeader() {
 }
 
 function showError(err) {
+  console.error(err);
   const box = $("status");
   box.className = "state state-error";
   box.replaceChildren(
     h("div", { class: "empty" }, icon("triangle-alert", "icon"),
-      h("p", { class: "empty-title", text: "Data dashboard gagal dimuat" }),
-      h("p", { text: "File hasil pipeline tidak dapat dibaca. Periksa koneksi lalu coba lagi. Jika situs dijalankan lokal, jalankan data-trust run terlebih dahulu." }),
-      h("p", { class: "muted", text: `Detail teknis: ${err.message}` }),
+      h("p", { class: "empty-title", text: "Data belum dapat dimuat" }),
+      h("p", { text: "Periksa koneksi internet, lalu coba lagi." }),
       h("button", { type: "button", class: "btn", onclick: () => { box.className = "state"; load(); } }, "Coba lagi")));
 }
 
@@ -522,9 +494,8 @@ async function load() {
   };
   state.month = months.at(-1);
   const boroughs = [...new Set(zones.map((z) => z.borough).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  $("zone-borough").replaceChildren(h("option", { value: "", text: "Semua borough" }), ...boroughs.map((b) => h("option", { value: b, text: b })));
+  $("zone-borough").replaceChildren(h("option", { value: "", text: "Semua wilayah" }), ...boroughs.map((b) => h("option", { value: b, text: b })));
   renderHeader();
-  renderSources();
   renderMonth();
   $("status").hidden = true;
   $("content").hidden = false;
@@ -616,13 +587,12 @@ function setupScrollSpy() {
 
 function setupControls() {
   $("month").addEventListener("change", (e) => setMonth(e.target.value));
-  $("rule-search").addEventListener("input", (e) => { state.ruleSearch = e.target.value; renderRulesTable(state.data.reportBy[state.month]); });
   $("rule-filter").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-value]");
     if (!b) return;
     state.ruleFilter = b.dataset.value;
     $("rule-filter").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
-    renderRulesTable(state.data.reportBy[state.month]);
+    renderChecks(state.data.reportBy[state.month]);
   });
   const zones = () => state.data.zones.filter((z) => z.month === state.month);
   $("zone-search").addEventListener("input", (e) => { state.zoneSearch = e.target.value; renderZones(zones()); });

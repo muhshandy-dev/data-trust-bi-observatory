@@ -126,3 +126,25 @@ def test_every_icon_used_exists_in_the_sprite():
             used |= set(re.findall(r'(?<!=== )"([a-z0-9-]+)"', text[m.end() : i]))
         used |= set(re.findall(r'\bic: "([a-z0-9-]+)"', text))
     assert used and used <= defined, sorted(used - defined)
+
+
+def test_page_copy_avoids_engineering_terms():
+    """Visible text is for non-technical readers: no tool names, no internal column names."""
+    import re
+    from html.parser import HTMLParser
+
+    class Text(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.parts: list[str] = []
+
+        def handle_data(self, data):
+            self.parts.append(data)
+
+    parser = Text()
+    parser.feed((PUBLIC / "index.html").read_text())
+    rules_js = (PUBLIC / "js" / "rules.js").read_text()
+    labels = re.findall(r'(?:title|detail|label|impact): "([^"]+)"', rules_js)
+    text = " ".join(parser.parts + labels)
+    banned = r"JSON|pipeline|DuckDB|Parquet|SHA-256|\b(?:rule|warning|error|baris)\b|_"
+    assert labels and not re.findall(banned, text, re.IGNORECASE)

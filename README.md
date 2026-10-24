@@ -97,14 +97,27 @@ make check                        # ruff + pytest with coverage
 ## Frontend
 
 `web/public` is plain HTML/CSS/ES modules (no framework, no build step, so Cloudflare Pages deploys do
-not spend build minutes). It reads `web/public/data/*.json` and shows: trust tiles, the trusted / clean
-share by month, violation rate per rule (warning rules in orange), where warnings concentrate by vendor
-and payment type, raw vs trusted metrics, daily trips, a weekday x hour heatmap and the top pickup zones,
-plus a "Method and limitations" section. Charts are responsive (bars reflow on phones, line charts redraw
-at the container width), light and dark themes follow the OS setting, every chart has a table view and
-rule rows are keyboard-focusable. Preview locally with `python -m http.server -d web/public`. The JSON
-fields the page reads are pinned by a contract test. If the data files are missing it shows an explicit
-empty state instead of a blank page.
+not spend build minutes). `index.html` sits at the root of the published output. The interface is in
+Indonesian (number format `4.145.257`, `92,23%`; month names such as "Maret 2025") and is organised as
+an analytics workspace:
+
+- a collapsible sidebar (off-canvas drawer below 1024 px) with Ringkasan, Kualitas Data, Pemeriksaan
+  Aturan, Analisis Perjalanan, Metodologi and Keterbatasan, and a header with a month picker and a
+  light/dark toggle;
+- four KPI cards (total rows, rows passing critical checks, rows with no rule finding, duplicate rows),
+  each with a methodology tooltip, plus a row classification bar and findings computed from the JSON;
+- month-to-month quality (100% stacked columns, clickable), a rule x month violation pattern table, a
+  searchable and filterable rules table with per-vendor / per-payment-type drill-down for warning rules;
+- raw vs post-check metrics, daily trips, a weekday x hour heatmap, payment types and a searchable
+  pickup-zone table filtered by borough;
+- methodology (source, period, critical vs warning rules, quality categories) and limitations.
+
+Charts redraw at the container width, are keyboard-reachable and have a table view. Display labels are
+in `web/public/js/rules.js` and `format.js`; no number is recomputed in the browser beyond simple
+differences and shares of the published counts. The Inter variable font (SIL OFL 1.1, `assets/fonts/OFL.txt`)
+and a Lucide icon sprite (ISC) are self-hosted, so the CSP in `_headers` stays `'self'`-only. Preview
+locally with `python -m http.server -d web/public`. If the data files are missing the page shows an
+explicit error state with a retry button instead of a blank page.
 
 ## Tests
 

@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+# Raw TLC downloads are large and reproducible from the manifest; never commit them.
+data/raw/
+data/interim/
+# Published aggregates (small JSON) live in web/public/data and ARE committed.

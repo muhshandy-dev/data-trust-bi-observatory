@@ -114,3 +114,38 @@ def test_ingest_failure_is_a_clean_error(tmp_path: Path, capsys):
         argv = ["--root", str(tmp_path), "ingest", "--months", MONTH, "--base-url", srv.base]
         assert main(argv) == 1
     assert "error:" in capsys.readouterr().err
+
+
+def test_exported_json_has_the_fields_the_frontend_reads(project: Path):
+    """web/public/app.js reads exactly these keys; renaming one must fail here, not in a browser."""
+    entry = {"url": "u", "bytes": 1, "sha256": "x", "rows": 15}
+    manifest = {f"yellow_tripdata_{MONTH}.parquet": entry}
+    (project / "data" / "raw" / "manifest.json").write_text(json.dumps(manifest))
+    main(["--root", str(project), "build", "--months", MONTH])
+    out = project / "web" / "public" / "data"
+    load = lambda name: json.loads((out / name).read_text())  # noqa: E731
+
+    meta = load("meta.json")
+    assert {"months", "pipeline_version", "sources"} <= meta.keys()
+    assert {"url", "bytes", "sha256", "rows"} <= meta["sources"][
+        f"yellow_tripdata_{MONTH}.parquet"
+    ].keys()
+
+    report = load("trust_report.json")[0]
+    assert {
+        "month",
+        "rows",
+        "trusted_rows",
+        "trusted_rate",
+        "duplicate_rows",
+        "rules",
+    } <= report.keys()
+    assert {"id", "name", "description", "violations", "rate"} <= report["rules"][0].keys()
+
+    metrics = load("metrics_monthly.json")[0]
+    assert {"month", "raw", "trusted"} <= metrics.keys()
+    keys = {"trips", "revenue", "avg_fare", "avg_distance_mi", "avg_duration_min", "avg_tip_rate"}
+    assert keys <= metrics["raw"].keys() and keys <= metrics["trusted"].keys()
+
+    day = load("daily.json")[0]["days"][0]
+    assert {"date", "trips_raw", "trips_trusted", "revenue_trusted"} <= day.keys()

@@ -5,9 +5,9 @@ Data-quality audit and *trust-adjusted* BI metrics over the public
 For each month the pipeline answers two questions: **how much of the data can be trusted**, and
 **how much do the headline metrics move once untrusted rows are removed?**
 
-> **Status: pipeline v0.** Ingest, validation, aggregation, JSON export, CLI and tests are
-> implemented and unit-tested on synthetic fixtures. The pipeline has **not** yet been run on the
-> real TLC files, there is no web UI yet, and nothing is deployed. Findings about the real data
+> **Status: pipeline v0 + static frontend.** Ingest, validation, aggregation, JSON export, CLI,
+> tests, CI and a static dashboard (`web/public`) are implemented. Tests use synthetic fixtures.
+> The pipeline has **not** yet been run on the real TLC files, and nothing is deployed. Findings about the real data
 > will be added here only after they have been computed.
 
 ## How it works
@@ -51,6 +51,14 @@ make check                        # ruff + pytest with coverage
 `ingest` accepts `--base-url` to point at a mirror of the TLC host. Raw files go to `data/raw/`
 (git-ignored); published aggregates go to `web/public/data/`.
 
+## Frontend
+
+`web/public` is plain HTML/CSS/ES modules with inline SVG charts (no framework, no build step, so
+Cloudflare Pages deploys do not spend build minutes). It reads `web/public/data/*.json`; until the
+pipeline has produced them it shows an explicit empty state. Preview locally with
+`python -m http.server -d web/public`. Light/dark themes, keyboard-focusable bars, and a table view
+for every chart. The JSON fields the page reads are pinned by a contract test.
+
 ## Tests
 
 `pytest` runs unit and end-to-end tests against synthetic Parquet fixtures with known defects (one
@@ -69,7 +77,7 @@ schedules are disabled after 60 days without repository activity.
 
 1. ~~Pipeline v0 + tests + CI~~ (this repo state)
 2. Run on real TLC months; record real findings and the exact months/checksums used
-3. Web UI (static site reading `web/public/data`), deploy to Cloudflare Pages
+3. ~~Web UI~~ (static site in `web/public`, no build step; shows an empty state until data exists); deploy to Cloudflare Pages
 4. Extract the repo scaffolding (CI, Makefile, size guard) as a template for the other projects
 
 ## License

@@ -5,9 +5,12 @@ Data-quality audit and *trust-adjusted* BI metrics over the public
 For each month the pipeline answers two questions: **how much of the data can be trusted**, and
 **how much do the headline metrics move once untrusted rows are removed?**
 
-> **Status: pipeline v0.2 run on real data + static frontend.** The pipeline has been run on six real
-> Yellow Taxi months (2024-01..03 and 2025-01..03) and the resulting aggregates are committed in
-> `web/public/data/`. Not deployed yet. See [Findings](#findings-on-real-tlc-data).
+**Live demo:** https://data-trust-bi-observatory.pages.dev/ (static site on Cloudflare Pages; there is no
+server that can go to sleep) · [![CI](https://github.com/muhshandy-dev/data-trust-bi-observatory/actions/workflows/ci.yml/badge.svg)](https://github.com/muhshandy-dev/data-trust-bi-observatory/actions/workflows/ci.yml)
+
+> **Status:** pipeline run on six real Yellow Taxi months (2024-01..03 and 2025-01..03); the aggregates
+> are committed in `web/public/data/` and shown by the dashboard. See
+> [Findings](#findings-on-real-tlc-data) and [Evaluation and limitations](#evaluation-and-limitations).
 
 ## How it works
 
@@ -85,6 +88,7 @@ make install                      # venv + dev dependencies
 .venv/bin/data-trust run --months 2024-01 2024-02 2024-03   # ingest, then build JSON
 .venv/bin/data-trust validate --months 2024-01              # print the trust report
 make check                        # ruff + pytest with coverage
+.venv/bin/python tools/recompute_check.py   # recompute published numbers from the raw files
 ```
 
 `ingest` accepts `--base-url` to point at a mirror of the TLC host. Raw files go to `data/raw/`
@@ -92,11 +96,15 @@ make check                        # ruff + pytest with coverage
 
 ## Frontend
 
-`web/public` is plain HTML/CSS/ES modules with inline SVG charts (no framework, no build step, so
-Cloudflare Pages deploys do not spend build minutes). It reads `web/public/data/*.json`; until the
-pipeline has produced them it shows an explicit empty state. Preview locally with
-`python -m http.server -d web/public`. Light/dark themes, keyboard-focusable bars, and a table view
-for every chart. The JSON fields the page reads are pinned by a contract test.
+`web/public` is plain HTML/CSS/ES modules (no framework, no build step, so Cloudflare Pages deploys do
+not spend build minutes). It reads `web/public/data/*.json` and shows: trust tiles, the trusted / clean
+share by month, violation rate per rule (warning rules in orange), where warnings concentrate by vendor
+and payment type, raw vs trusted metrics, daily trips, a weekday x hour heatmap and the top pickup zones,
+plus a "Method and limitations" section. Charts are responsive (bars reflow on phones, line charts redraw
+at the container width), light and dark themes follow the OS setting, every chart has a table view and
+rule rows are keyboard-focusable. Preview locally with `python -m http.server -d web/public`. The JSON
+fields the page reads are pinned by a contract test. If the data files are missing it shows an explicit
+empty state instead of a blank page.
 
 ## Tests
 
@@ -106,18 +114,56 @@ truncated/non-Parquet payloads, checksum mismatch, idempotent re-run). The fixtu
 data, so passing tests demonstrate that the code does what it claims, not what the real data
 contains. CI (`.github/workflows/ci.yml`) runs ruff and pytest on Python 3.11 and 3.13.
 
+## Evaluation and limitations
+
+How the results are checked, and what they do **not** show:
+
+- **No ground truth.** There are no labelled bad rows, so there is no precision or recall. Results are
+  rule violation counts and the movement of metrics under a stated definition of "trusted". Thresholds
+  (100 miles, 80 mph, 24 hours, 6 passengers, 1 cent reconciliation tolerance) are heuristics in
+  `validate.py`; changing them changes the numbers.
+- **Trusted is not correct.** A row can satisfy every rule and still be wrong. Revenue is the sum of
+  `total_amount` (tips, taxes and surcharges included), not driver earnings.
+- **Scope.** Yellow Taxi, six months only. Nothing is claimed about green taxis, for-hire vehicles or
+  other years. Duplicates are counted but not removed. Timestamps are used as published (no time-zone
+  handling).
+- **Warning rules are a judgement call.** R10 and R12 are not excluded because they fire on whole
+  vendors / payment types (see Findings). The error/warning split is a documented design choice, and the
+  report exposes both `trusted_rate` and the stricter `clean_rate` so a reader can pick.
+- **Verification.** (1) `tests/` (unit, end-to-end, JSON contract) run in CI. (2)
+  `tests/test_published_data.py` checks the committed aggregates are internally consistent (daily, hourly,
+  zone and payment totals equal the monthly trusted trips), under the Pages size limit and served with a
+  strict CSP. (3) `tools/recompute_check.py` re-implements the error rules as one standalone SQL query
+  and compares row counts, revenue and mean distance with the published JSON; it matched for all six
+  months when last run, but it was written by the same author as the pipeline, so it is a cross-check,
+  not an independent audit. (4) The SHA-256 of every source file is published in `meta.json`.
+- **Browser checks.** The dashboard was exercised in headless Chromium (desktop, tablet, 375 px phone;
+  month switching, tooltips, theme toggle, table views, window resize) under the production CSP with no
+  console errors or failed requests. That is a smoke test, not cross-browser testing.
+
+## Deployment
+
+Cloudflare Pages serves `web/public` directly (build command empty, output directory `web/public`,
+production branch `main`). It is static, so there is no process to hibernate; the only runtime
+dependency is Cloudflare's edge. `web/public/_headers` sets a strict Content-Security-Policy (no inline
+script or style, no third-party requests), `nosniff`, frame denial and a minimal permissions policy.
+No secrets, tokens or API keys are used anywhere. Setup steps: [docs/DEPLOY_CLOUDFLARE.md](docs/DEPLOY_CLOUDFLARE.md).
+To refresh data, run the pipeline locally, review the diff of `web/public/data/meta.json`, and merge to
+`main`; Pages redeploys on push.
+
 ## Hosting constraints that shape the design
 
 Cloudflare Pages: 25 MiB per file and a shared 500 builds/month across the portfolio, so the web
 app consumes small pre-aggregated JSON and CI avoids needless deploy builds. GitHub Actions
-schedules are disabled after 60 days without repository activity.
+schedules are disabled after 60 days without repository activity, so nothing here depends on one.
 
 ## Roadmap
 
 1. ~~Pipeline v0 + tests + CI~~ (this repo state)
-2. Run on real TLC months; record real findings and the exact months/checksums used
-3. ~~Web UI~~ (static site in `web/public`, no build step; shows an empty state until data exists); deploy to Cloudflare Pages
-4. Extract the repo scaffolding (CI, Makefile, size guard) as a template for the other projects
+2. ~~Run on real TLC months; record findings and checksums~~
+3. ~~Web UI and Cloudflare Pages deployment~~
+4. Possible next steps: more months, threshold sensitivity analysis, green taxi / HVFHV
+5. Extract the repo scaffolding (CI, Makefile, size guard) as a template for the other projects
 
 ## License
 

@@ -160,3 +160,8 @@ def test_exported_json_has_the_fields_the_frontend_reads(project: Path):
 
     day = load("daily.json")[0]["days"][0]
     assert {"date", "trips_raw", "trips_trusted", "revenue_trusted"} <= day.keys()
+
+    hourly = load("hourly.json")[0]["cells"][0]
+    assert {"iso_dow", "hour", "trips_trusted", "avg_fare"} <= hourly.keys()
+    zone = load("zones.json")[0]
+    assert {"month", "zone_id", "trips_trusted", "avg_fare", "avg_tip_rate"} <= zone.keys()

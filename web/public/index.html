@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Trust &amp; BI Observatory</title>
+<meta name="description" content="How much of NYC TLC taxi trip data can be trusted, and how much do headline metrics move when untrusted rows are removed?">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="page-head">
+  <div>
+    <h1>Data Trust &amp; BI Observatory</h1>
+    <p class="sub">NYC TLC Yellow Taxi trip records: row-level data-quality rules and trust-adjusted metrics.</p>
+  </div>
+  <div class="controls">
+    <label for="month">Month</label>
+    <select id="month" disabled></select>
+    <button id="theme" type="button" aria-label="Toggle dark mode">Theme</button>
+  </div>
+</header>
+
+<main>
+  <p id="status" role="status" class="status">Loading data…</p>
+
+  <section id="content" hidden>
+    <div class="tiles" id="tiles"></div>
+
+    <section class="card">
+      <h2>Which rules reject the most rows?</h2>
+      <p class="note">Share of the month's rows violating each rule. A row can violate several rules, so bars do not add up to the rejected share. Error rules exclude a row from the trusted subset; warning rules (orange) are reported but keep the row.</p>
+      <div id="rules-chart" class="chart"></div>
+      <details><summary>Show as table</summary><div id="rules-table"></div></details>
+    </section>
+
+    <section class="card">
+      <h2>Where do the warnings concentrate?</h2>
+      <p class="note">Violation rate of each warning rule inside each vendor and payment type (groups under 0.1% of rows omitted). A rate near 100% points at how a source records the field, not at random errors.</p>
+      <div id="breakdown-table"></div>
+    </section>
+
+    <section class="card">
+      <h2>How much do metrics move when untrusted rows are removed?</h2>
+      <p class="note">Scope: trips with a pickup inside the month. "Raw" keeps every such row; "Trusted" keeps rows that break no error-severity rule.</p>
+      <div id="metrics-table"></div>
+    </section>
+
+    <section class="card">
+      <h2>Daily trips: raw vs trusted</h2>
+      <div id="daily-chart" class="chart"></div>
+      <details><summary>Show as table</summary><div id="daily-table"></div></details>
+    </section>
+
+    <section class="card" id="meta"></section>
+  </section>
+</main>
+
+<div id="tip" class="tip" role="tooltip" hidden></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

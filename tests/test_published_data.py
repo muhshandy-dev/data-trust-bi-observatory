@@ -82,6 +82,7 @@ def test_manifest_hashes_are_sha256_hex():
 def test_headers_file_keeps_strict_csp_and_nosniff():
     text = (PUBLIC / "_headers").read_text()
     assert "Content-Security-Policy: default-src 'none'" in text
+    assert "font-src 'self'" in text
     assert "X-Content-Type-Options: nosniff" in text
     assert "unsafe-inline" not in text and "unsafe-eval" not in text
 
@@ -90,3 +91,38 @@ def test_page_has_no_inline_script_or_style():
     page = (PUBLIC / "index.html").read_text()
     assert "<style" not in page and ' style="' not in page
     assert page.count("<script") == 1 and "src=" in page.split("<script")[1].split(">")[0]
+
+
+def test_index_is_at_the_publish_root_and_local_assets_exist():
+    """Pages serves web/public as the site root; a file missing there is a 404 in production."""
+    import re
+
+    page = (PUBLIC / "index.html").read_text()
+    refs = re.findall(r'(?:src|href)="([^"#:]+)(?:#[^"]*)?"', page)
+    local = [r for r in refs if not r.startswith(("http", "data:", "//")) and r]
+    assert "style.css" in local and "app.js" in local
+    for ref in local:
+        assert (PUBLIC / ref).is_file(), ref
+    for js in [PUBLIC / "app.js", *(PUBLIC / "js").glob("*.js")]:
+        for mod in re.findall(r'from "\./([^"]+)"', js.read_text()):
+            assert (js.parent / mod).is_file(), f"{js.name} imports missing {mod}"
+
+
+def test_every_icon_used_exists_in_the_sprite():
+    import re
+
+    sprite = (PUBLIC / "assets" / "icons.svg").read_text()
+    defined = set(re.findall(r'<symbol id="i-([a-z0-9-]+)"', sprite))
+    used = set(re.findall(r"icons\.svg#i-([a-z0-9-]+)", (PUBLIC / "index.html").read_text()))
+    for js in [PUBLIC / "app.js", *(PUBLIC / "js").glob("*.js")]:
+        text = js.read_text()
+        for m in re.finditer(r"\bicon\(", text):
+            # first argument of icon(...): scan to the top-level comma or closing parenthesis
+            depth, i = 0, m.end()
+            while depth or text[i] not in ",)":
+                depth += {"(": 1, ")": -1}.get(text[i], 0)
+                i += 1
+            # string literals in that argument, except the right side of a comparison
+            used |= set(re.findall(r'(?<!=== )"([a-z0-9-]+)"', text[m.end() : i]))
+        used |= set(re.findall(r'\bic: "([a-z0-9-]+)"', text))
+    assert used and used <= defined, sorted(used - defined)

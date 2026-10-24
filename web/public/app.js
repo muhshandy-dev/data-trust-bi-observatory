@@ -20,7 +20,7 @@ const state = {
   data: null,
   month: null,
   ruleFilter: "all",
-  openRules: new Set(),
+  openRule: null, // only one check is open at a time, so the list stays short on phones
   zoneSearch: "",
   zoneBorough: "",
   zoneSort: { key: "trips_trusted", dir: -1 },
@@ -99,7 +99,7 @@ function renderKpis(report) {
       sub: `${fmtInt(report.clean_rows)} perjalanan tanpa masalah apa pun.`,
       info: "Perjalanan yang lolos seluruh 12 pemeriksaan, termasuk pemeriksaan masalah ringan." },
     { tone: "neutral", ic: "copy", label: "Data Duplikat", value: fmtInt(report.duplicate_rows),
-      sub: "Perjalanan yang tercatat dua kali.",
+      sub: "Perjalanan yang tercatat lebih dari sekali.",
       info: "Perjalanan yang seluruh isinya sama persis dengan perjalanan lain. Dihitung, tetapi belum dihapus." },
   ];
   $("kpis").replaceChildren(...kpis.map((k) =>
@@ -133,7 +133,7 @@ function renderFacts(report, metrics) {
     { ic: "octagon-alert", cls: "bad", head: "Masalah kritis terbanyak",
       html: `<b>${escapeHtml(ruleTitle(crit))}</b> pada ${fmtPct(crit.rate)} perjalanan.` },
     { ic: "circle-alert", cls: "warn", head: "Masalah ringan terbanyak",
-      html: `<b>${escapeHtml(ruleTitle(warn))}</b> pada ${fmtPct(warn.rate)} perjalanan${topVendor ? `, terutama dari penyedia ${escapeHtml(groupLabel("vendor_id", topVendor.key))} (${fmtPct(topVendor.rate, 1)} datanya)` : ""}.` },
+      html: `<b>${escapeHtml(ruleTitle(warn))}</b> pada ${fmtPct(warn.rate)} perjalanan${topVendor ? `. Pada penyedia ${escapeHtml(groupLabel("vendor_id", topVendor.key))}, ${fmtPct(topVendor.rate, 1)} perjalanannya terdampak` : ""}.` },
     { ic: "map-pin", cls: "info", head: "Dampak pada rata-rata jarak",
       html: `Turun dari ${fmtDec(raw.avg_distance_mi)} menjadi <b>${fmtDec(tr.avg_distance_mi)} mil</b> (${fmtDelta(raw.avg_distance_mi, tr.avg_distance_mi)}) setelah data bermasalah dikeluarkan.` },
     { ic: "credit-card", cls: "info", head: "Dampak pada pendapatan",
@@ -197,75 +197,106 @@ function renderPattern() {
 }
 
 // ---------------------------------------------------------------------------------------- pemeriksaan
+// Where a check fires most, by provider and payment method. Each share is "flagged trips of that
+// group / all trips of that group", so it is labelled per group, never as a share of the month.
 function breakdownBlock(report, rule) {
   const blocks = report.breakdowns.filter((b) => b.rule === rule.id);
   if (!blocks.length) return null;
-  return h("div", { class: "breakdowns" }, blocks.map((b) =>
-    h("div", { class: "breakdown" },
+  const tables = blocks.map((b) => {
+    const rows = [...b.groups].sort((x, y) => y.rate - x.rate);
+    return h("div", { class: "breakdown" },
       h("p", { class: "breakdown-title", text: b.by === "vendor_id" ? "Per penyedia data" : "Per cara bayar" }),
-      h("ul", { class: "mini-bars" }, [...b.groups].sort((x, y) => y.rate - x.rate).map((g) => {
-        const fill = h("span", { class: "mini-fill warn" });
-        fill.style.width = g.rate * 100 + "%";
-        return h("li", {}, h("span", { class: "mini-label", text: groupLabel(b.by, g.key) }),
-          h("span", { class: "mini-track" }, fill),
-          h("span", { class: "mini-value", text: fmtPct(g.rate, 1) }),
-          h("span", { class: "mini-rows", text: `${fmtInt(g.violations)} dari ${fmtInt(g.rows)} perjalanan` }));
-      })))));
+      h("table", { class: "mini-table" },
+        h("thead", {}, h("tr", {}, h("th", { scope: "col", text: b.by === "vendor_id" ? "Penyedia" : "Cara bayar" }), h("th", { scope: "col", class: "num", text: "Terdampak" }))),
+        h("tbody", {}, rows.map((g) => h("tr", {},
+          h("th", { scope: "row", text: groupLabel(b.by, g.key) }),
+          h("td", { class: "num" }, h("b", { text: fmtPct(g.rate, 1) }), h("span", { class: "muted", text: ` dari ${fmtInt(g.rows)}` })))))));
+  });
+  return h("details", { class: "more" },
+    h("summary", {}, icon("chevron-right", "icon icon-xs more-chev"), "Rincian per penyedia dan cara bayar"),
+    h("p", { class: "more-note", text: "Persentase dihitung dari jumlah perjalanan masing-masing penyedia atau cara bayar." }),
+    h("div", { class: "breakdowns" }, tables));
 }
 
-// One accordion item per check, largest share first. The rule code stays visible but secondary.
+// One line on where a warning check concentrates: the group (provider or payment method holding at
+// least 1% of the month's trips) with the highest rate, shown only when it clearly stands out.
+function hotspot(report, rule) {
+  const cands = report.breakdowns.filter((b) => b.rule === rule.id).flatMap((b) =>
+    b.groups.filter((g) => g.rows / report.rows >= 0.01).map((g) => ({ ...g, by: b.by })));
+  const g = cands.sort((x, y) => y.rate - x.rate)[0];
+  if (!g || g.rate < rule.rate * 1.5) return null;
+  const who = g.by === "vendor_id" ? `perjalanan dari ${groupLabel("vendor_id", g.key)}` : `pembayaran ${groupLabel("payment_type", g.key).toLowerCase()}`;
+  return `Paling sering pada ${who}: ${fmtPct(g.rate, 1)} di antaranya terdampak.`;
+}
+
+// One accordion item per check, largest share first. Name, level, trips affected and share come
+// first; the explanation, the internal code and the breakdown sit inside.
 function renderChecks(report) {
   const rules = report.rules.filter((r) => state.ruleFilter === "all" || r.severity === state.ruleFilter).sort((a, b) => b.rate - a.rate);
   const max = Math.max(...report.rules.map((r) => r.rate), 1e-9);
+  $("checks-note").textContent = `Persentase dihitung dari ${fmtInt(report.rows)} perjalanan pada ${fmtMonth(state.month)}. Temuan berarti data perlu diperhatikan, belum tentu salah.`;
   $("checks").replaceChildren(...rules.map((r) => {
-    const open = state.openRules.has(r.id);
+    const open = state.openRule === r.id;
     const sev = r.severity === "error" ? "bad" : "warn";
     const panelId = `check-${r.id}`;
     const fill = h("span", { class: `check-fill ${sev}` });
     fill.style.width = (r.violations ? Math.max((r.rate / max) * 100, 1.5) : 0) + "%";
-    const toggle = () => { open ? state.openRules.delete(r.id) : state.openRules.add(r.id); renderChecks(report); $(`btn-${r.id}`)?.focus(); };
+    const toggle = () => {
+      state.openRule = open ? null : r.id;
+      renderChecks(report);
+      const btn = $(`btn-${r.id}`);
+      btn?.focus({ preventScroll: true });
+      // keep the tapped row in view below the sticky header after the list re-renders
+      if (btn && btn.getBoundingClientRect().top < document.querySelector(".topbar").offsetHeight) btn.scrollIntoView({ block: "start" });
+    };
     const head = h("button", { type: "button", class: "check-head", id: `btn-${r.id}`, "aria-expanded": String(open), "aria-controls": panelId, onclick: toggle },
       h("span", { class: "check-main" },
         h("span", { class: "check-title", text: ruleTitle(r) }),
         h("span", { class: "check-meta" },
           h("span", { class: `badge badge-${sev}`, text: SEVERITY[r.severity].label }),
-          h("span", { text: r.violations ? `${fmtInt(r.violations)} perjalanan` : "Tidak ditemukan" }),
-          h("span", { class: "check-code", text: r.id }))),
+          h("span", { text: r.violations ? `${fmtInt(r.violations)} perjalanan` : "Tidak ditemukan" }))),
       h("span", { class: "check-value" },
         h("span", { class: "check-pct", text: fmtRate(r.rate) }),
         h("span", { class: "check-track", "aria-hidden": "true" }, fill)),
       icon("chevron-down", "icon icon-sm chev"));
     const item = h("li", { class: "check" + (open ? " is-open" : "") }, head);
     if (open) {
+      const spot = r.severity === "warning" ? hotspot(report, r) : null;
       item.append(h("div", { class: "check-body", id: panelId },
         h("p", { text: RULES[r.id]?.detail ?? r.description }),
-        h("p", { class: "check-impact" }, icon(sev === "bad" ? "octagon-alert" : "circle-alert", "icon icon-xs"), SEVERITY[r.severity].impact),
-        breakdownBlock(report, r)));
+        h("p", { class: `check-impact ${sev}`, text: SEVERITY[r.severity].impact }),
+        spot ? h("p", { text: spot }) : null,
+        breakdownBlock(report, r),
+        h("p", { class: "check-code", text: `Kode pemeriksaan ${r.id}` })));
     }
     return item;
   }));
 }
 
-// ---------------------------------------------------------------------------------------- perjalanan
-function renderMetrics(m) {
+function renderMetrics(m, report) {
   const defs = [
-    ["Jumlah perjalanan", "trips", fmtInt, null],
+    ["Jumlah perjalanan", "trips", fmtInt, "outside"],
     ["Total pendapatan", "revenue", fmtUsd0, "Termasuk tip, pajak, dan biaya tambahan."],
     ["Rata-rata tarif", "avg_fare", fmtUsd, "Tarif dasar, belum termasuk tip."],
     ["Rata-rata jarak", "avg_distance_mi", (x) => `${fmtDec(x)} mil`, "Paling terpengaruh data jarak ekstrem."],
     ["Rata-rata durasi", "avg_duration_min", (x) => `${fmtDec(x, 1)} menit`, null],
     ["Rata-rata tip", "avg_tip_rate", (x) => fmtPct(x, 1), "Persentase dari tarif, kartu kredit saja."],
   ];
-  $("metrics").replaceChildren(h("div", { class: "metric-grid" }, defs.map(([label, key, f, note]) => {
+  $("metrics").replaceChildren(h("div", { class: "metric-grid" }, defs.map(([label, key, f, note0]) => {
+    let note = note0;
     const raw = m.raw[key], tr = m.trusted[key];
     const d = raw ? (tr - raw) / raw : 0;
+    if (note === "outside") {
+      const n = report.rows - m.raw.trips;
+      note = n ? `Tidak termasuk ${fmtInt(n)} perjalanan dengan waktu jemput kosong atau di luar bulan ini.` : null;
+    }
     return h("div", { class: "metric" },
       h("p", { class: "metric-label", text: label }),
       h("div", { class: "metric-values" },
         h("div", {}, h("span", { class: "metric-tag", text: "Semua data" }), h("span", { class: "metric-raw", text: raw == null ? "Tidak ada" : f(raw) })),
         h("div", {}, h("span", { class: "metric-tag tag-trusted", text: "Lolos pemeriksaan" }), h("span", { class: "metric-trusted", text: tr == null ? "Tidak ada" : f(tr) }))),
       h("p", { class: "metric-foot" },
-        h("span", { class: "delta" }, icon(d > 0 ? "arrow-up" : "arrow-down", "icon icon-xs"), fmtDelta(raw, tr)),
+        h("span", { class: "delta", title: "Perubahan dibanding semua data" }, icon(d > 0 ? "arrow-up" : "arrow-down", "icon icon-xs"), fmtDelta(raw, tr)),
         note ? h("span", { class: "muted", text: note }) : null));
   })));
 }
@@ -380,7 +411,7 @@ function renderMonth() {
   renderClassChart();
   renderPattern();
   renderChecks(report);
-  renderMetrics(metrics);
+  renderMetrics(metrics, report);
   renderDaily(state.data.dailyBy[m].days);
   renderHeatmap(state.data.hourlyBy[m].cells);
   renderPayments(state.data.paymentsBy[m].payments);

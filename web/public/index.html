@@ -114,13 +114,13 @@
           </div>
           <article class="card">
             <header class="card-head">
-              <div><h3>Bagaimana Kualitas Data Berubah Setiap Bulan?</h3><p class="card-sub">Pilih kolom untuk melihat bulan tersebut.</p></div>
+              <div><h3>Bagaimana Kualitas Data Berubah Setiap Bulan?</h3><p class="card-sub">Porsi perjalanan tiap bulan. Pilih kolom untuk melihat bulan tersebut.</p></div>
               <ul class="legend" id="class-legend"></ul>
             </header>
             <div id="class-chart" class="chart"></div>
             <details class="table-toggle"><summary>Lihat angka per bulan</summary><div id="class-table"></div></details>
             <details class="table-toggle"><summary>Lihat tren per jenis pemeriksaan</summary>
-              <p class="card-note">Warna lebih pekat berarti masalah lebih sering ditemukan.</p>
+              <p class="card-note">Persentase dari semua perjalanan di bulan tersebut. Warna lebih pekat berarti lebih sering ditemukan.</p>
               <div id="pattern-table"></div>
             </details>
           </article>
@@ -141,9 +141,10 @@
               </div>
               <ul class="legend legend-explain">
                 <li><i class="sw sw-bad"></i><span><b>Kritis</b>: dikeluarkan dari analisis</span></li>
-                <li><i class="sw sw-warn"></i><span><b>Ringan</b>: tetap dipakai, dicatat</span></li>
+                <li><i class="sw sw-warn"></i><span><b>Ringan</b>: tetap dipakai</span></li>
               </ul>
             </div>
+            <p class="checks-note" id="checks-note"></p>
             <ul class="checks" id="checks"></ul>
           </article>
         </section>
@@ -156,7 +157,7 @@
           </div>
           <article class="card">
             <h3>Dampak Pemeriksaan pada Angka Utama</h3>
-            <p class="card-sub">Perbandingan semua data dengan data yang lolos pemeriksaan.</p>
+            <p class="card-sub">Semua data dibandingkan dengan data yang lolos pemeriksaan. Kotak kecil menunjukkan perubahannya.</p>
             <div id="metrics"></div>
           </article>
           <article class="card">
@@ -176,7 +177,7 @@
             </article>
             <article class="card">
               <h3>Cara Pembayaran</h3>
-              <p class="card-sub">Porsi perjalanan per cara bayar.</p>
+              <p class="card-sub">Porsi dari perjalanan yang lolos pemeriksaan.</p>
               <div id="payments"></div>
             </article>
           </div>

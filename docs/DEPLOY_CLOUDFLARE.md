@@ -16,6 +16,8 @@ Set up once in the Cloudflare dashboard (Workers & Pages -> Create -> Pages -> C
 Then, under Settings -> Builds, turn **off** preview builds for non-production branches. Pages allows
 500 builds per month per account, shared by every site on it.
 
+`web/public/_headers` is picked up automatically and sets the security headers (strict CSP, nosniff, no framing).
+
 Limits to respect: 25 MiB per file and 20,000 files per deployment. `data-trust build` already refuses to
 write a JSON file above 25 MiB; the current largest file is `zones.json` (about 210 KB).
 

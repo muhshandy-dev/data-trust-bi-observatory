@@ -4,7 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Data Trust &amp; BI Observatory</title>
-<meta name="description" content="How much of NYC TLC taxi trip data can be trusted, and how much do headline metrics move when untrusted rows are removed?">
+<meta name="description" content="How much of NYC TLC taxi trip data can be trusted, and how much do headline metrics move when untrusted rows are removed? Row-level data-quality rules over six months of real Yellow Taxi records.">
+<meta property="og:title" content="Data Trust &amp; BI Observatory">
+<meta property="og:description" content="Row-level data-quality rules and trust-adjusted BI metrics over real NYC TLC Yellow Taxi trip records.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232a78d6'/%3E%3Cpath d='M8 17l5 5 11-12' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -16,18 +20,26 @@
   <div class="controls">
     <label for="month">Month</label>
     <select id="month" disabled></select>
-    <button id="theme" type="button" aria-label="Toggle dark mode">Theme</button>
+    <button id="theme" type="button" aria-pressed="false" aria-label="Toggle dark mode">Theme</button>
   </div>
 </header>
 
 <main>
   <p id="status" role="status" class="status">Loading data…</p>
+  <noscript><p class="status">This dashboard needs JavaScript to draw its charts. The numbers are plain JSON under <code>/data/</code> and the method is described in the <a href="https://github.com/muhshandy-dev/data-trust-bi-observatory#readme">README</a>.</p></noscript>
 
   <section id="content" hidden>
     <div class="tiles" id="tiles"></div>
 
     <section class="card">
-      <h2>Which rules reject the most rows?</h2>
+      <h2>How much of the data can be trusted, month by month?</h2>
+      <p class="note">Trusted = no error rule fired. Fully clean = no rule fired at all, warnings included. All six months are shown regardless of the month selected above.</p>
+      <div id="trend-chart" class="chart"></div>
+      <details><summary>Show as table</summary><div id="trend-table"></div></details>
+    </section>
+
+    <section class="card">
+      <h2>Which rules reject the most rows? (<span class="month-label"></span>)</h2>
       <p class="note">Share of the month's rows violating each rule. A row can violate several rules, so bars do not add up to the rejected share. Error rules exclude a row from the trusted subset; warning rules (orange) are reported but keep the row.</p>
       <div id="rules-chart" class="chart"></div>
       <details><summary>Show as table</summary><div id="rules-table"></div></details>
@@ -49,6 +61,32 @@
       <h2>Daily trips: raw vs trusted</h2>
       <div id="daily-chart" class="chart"></div>
       <details><summary>Show as table</summary><div id="daily-table"></div></details>
+    </section>
+
+    <section class="card">
+      <h2>When do trusted trips happen?</h2>
+      <p class="note">Trusted trips by pickup weekday and hour (local time as published by TLC). Darker means more trips; hover a cell for its count or open the table below.</p>
+      <div id="heatmap" class="chart"></div>
+      <details><summary>Show busiest slots as table</summary><div id="heatmap-table"></div></details>
+    </section>
+
+    <section class="card">
+      <h2>Top pickup zones</h2>
+      <p class="note">Ten pickup zones with the most trusted trips. Tip rate is tip / fare on credit-card trips only (cash tips are not recorded).</p>
+      <div id="zones-table"></div>
+    </section>
+
+    <section class="card prose" id="limits">
+      <h2>Method and limitations</h2>
+      <ul>
+        <li><strong>Scope.</strong> Yellow Taxi only, six months (2024-01 to 2024-03 and 2025-01 to 2025-03). Not green taxis, for-hire vehicles or other years, so no claim is made about them.</li>
+        <li><strong>Rules are heuristics.</strong> There are no labelled "bad rows", so results are rule violation counts, not precision or recall. Thresholds (100 miles, 80 mph, 24 hours, 6 passengers) are constants in <code>validate.py</code>; changing one changes the numbers.</li>
+        <li><strong>Trusted does not mean correct.</strong> A row can pass every rule and still be wrong. "Revenue" is the sum of <code>total_amount</code>, which includes tips, taxes and surcharges, not driver earnings.</li>
+        <li><strong>Error vs warning.</strong> Passenger count (R10) and total reconciliation (R12) fire on whole vendors or payment types, so they are reported but do not exclude rows; excluding them would remove most Vendor 1 and flex-fare trips and bias the metrics.</li>
+        <li><strong>Duplicates</strong> are counted, not removed. Timestamps are used as published, without time-zone conversion.</li>
+        <li><strong>Verification.</strong> The committed aggregates are checked for internal consistency by the test suite and were recomputed separately from the raw Parquet files; each source file's SHA-256 is shown below.</li>
+      </ul>
+      <p><a href="https://github.com/muhshandy-dev/data-trust-bi-observatory">Source code and full findings on GitHub</a> · <a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page">TLC trip record data</a></p>
     </section>
 
     <section class="card" id="meta"></section>

@@ -8,9 +8,17 @@ For each month the pipeline answers two questions: **how much of the data can be
 **Live demo:** https://data-trust-bi-observatory.pages.dev/ (static site on Cloudflare Pages; there is no
 server that can go to sleep) · [![CI](https://github.com/muhshandy-dev/data-trust-bi-observatory/actions/workflows/ci.yml/badge.svg)](https://github.com/muhshandy-dev/data-trust-bi-observatory/actions/workflows/ci.yml)
 
-> **Status:** pipeline run on six real Yellow Taxi months (2024-01..03 and 2025-01..03); the aggregates
-> are committed in `web/public/data/` and shown by the dashboard. See
+> **Status:** complete for the stated scope. Pipeline run on six real Yellow Taxi months (2024-01..03 and
+> 2025-01..03, 20,752,804 rows); aggregates are committed in `web/public/data/` and shown by the dashboard. See
 > [Findings](#findings-on-real-tlc-data) and [Evaluation and limitations](#evaluation-and-limitations).
+
+**Stack:** Python 3.11+, DuckDB, PyArrow, pytest, ruff, GitHub Actions · static HTML/CSS/ES modules (no
+framework, no build step) · Cloudflare Pages.
+
+**Ringkasan (ID):** dashboard ini menilai seberapa layak 20,8 juta data perjalanan taksi kuning NYC untuk
+dianalisis. Setiap perjalanan diperiksa dengan 12 aturan kualitas, lalu angka utama (pendapatan, jarak,
+tarif) dibandingkan antara semua data dan data yang lolos pemeriksaan. Antarmuka berbahasa Indonesia untuk
+pengguna nonteknis.
 
 ## How it works
 
@@ -152,9 +160,14 @@ How the results are checked, and what they do **not** show:
   and compares row counts, revenue and mean distance with the published JSON; it matched for all six
   months when last run, but it was written by the same author as the pipeline, so it is a cross-check,
   not an independent audit. (4) The SHA-256 of every source file is published in `meta.json`.
-- **Browser checks.** The dashboard was exercised in headless Chromium (desktop, tablet, 375 px phone;
-  month switching, tooltips, theme toggle, table views, window resize) under the production CSP with no
-  console errors or failed requests. That is a smoke test, not cross-browser testing.
+- **Reproducibility.** Rebuilding all JSON from the six raw files reproduces the committed files exactly,
+  except 2 of 1,529 zone rows whose average fare differs by 0.0001 USD (parallel floating-point summation;
+  the dashboard shows two decimals, so the displayed values are identical).
+- **Browser checks.** Headless Chromium under the production CSP at 320, 375, 768, 1280 and 1440 px, light
+  and dark: no horizontal overflow, console errors or failed requests; 44 scripted interactions (month
+  switching, filters, accordion, keyboard use, mobile drawer, sticky header, touch tooltips) pass; every
+  displayed KPI, category count and check count matches the JSON for all six months; axe-core (WCAG 2.1
+  AA and best-practice rules) reports no violations. This is Chromium only, not cross-browser testing.
 
 ## Deployment
 

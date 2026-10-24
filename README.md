@@ -5,10 +5,9 @@ Data-quality audit and *trust-adjusted* BI metrics over the public
 For each month the pipeline answers two questions: **how much of the data can be trusted**, and
 **how much do the headline metrics move once untrusted rows are removed?**
 
-> **Status: pipeline v0 + static frontend.** Ingest, validation, aggregation, JSON export, CLI,
-> tests, CI and a static dashboard (`web/public`) are implemented. Tests use synthetic fixtures.
-> The pipeline has **not** yet been run on the real TLC files, and nothing is deployed. Findings about the real data
-> will be added here only after they have been computed.
+> **Status: pipeline v0.2 run on real data + static frontend.** The pipeline has been run on six real
+> Yellow Taxi months (2024-01..03 and 2025-01..03) and the resulting aggregates are committed in
+> `web/public/data/`. Not deployed yet. See [Findings](#findings-on-real-tlc-data).
 
 ## How it works
 
@@ -24,11 +23,15 @@ TLC Parquet (CloudFront) ──ingest──▶ data/raw/ + manifest.json (size, 
                               web/public/data/*.json  (each file < 25 MiB for Cloudflare Pages)
 ```
 
-Trust rules (`src/data_trust/validate.py`): missing timestamp, dropoff before pickup, pickup outside the
+Trust rules (`src/data_trust/validate.py`) come in two severities. **Error** rules exclude a row from the
+trusted subset; **warning** rules (R10, R12) are reported and broken down by vendor and payment type but
+keep the row, because on real data they fire on large, systematic slices of otherwise valid trips (see
+Findings). The rules: missing timestamp, dropoff before pickup, pickup outside the
 file's month, duration > 24 h, non-positive distance, distance > 100 mi, speed > 80 mph, negative
 fare, non-positive total, invalid passenger count, unknown/placeholder zone (264/265), and
 `total_amount` not reconciling with its fee components. Thresholds are constants in that module.
-Exact duplicate rows are counted per month but not (yet) excluded from the trusted subset.
+Exact duplicate rows are counted per month but not (yet) excluded from the trusted subset. Each report gives
+`trusted_rate` (no error rule fired) and `clean_rate` (no rule fired at all, warnings included).
 
 Design choices worth knowing:
 
@@ -38,6 +41,42 @@ Design choices worth knowing:
 - **Schema drift is handled.** Column names are matched case-insensitively and fee columns are used
   only if present (`Airport_fee` → `airport_fee`, `cbd_congestion_fee` added in later files).
 - **Aggregate scope:** rows with a pickup inside the file's month, so daily series stay readable.
+
+## Findings on real TLC data
+
+Run on the official files from `d37ci6vzurychx.cloudfront.net` (SHA-256 of each file is in
+`web/public/data/meta.json`). Scope: Yellow Taxi, six months. These are observations about the files, not
+claims about why TLC or the vendors record them this way.
+
+| Month | Rows | Trusted (no error rule) | Clean (no rule at all) |
+|---|---:|---:|---:|
+| 2024-01 | 2,964,624 | 95.85% | 71.07% |
+| 2024-02 | 3,007,526 | 95.62% | 70.17% |
+| 2024-03 | 3,582,628 | 95.15% | 65.72% |
+| 2025-01 | 3,475,226 | 92.89% | 63.96% |
+| 2025-02 | 3,577,543 | 91.91% | 58.19% |
+| 2025-03 | 4,145,257 | 92.23% | 59.35% |
+
+- **R12 (total does not reconcile) is a vendor/encoding pattern, not noise.** It fires on 89-93% of
+  Vendor 1 rows in every month. In 2024-01 most mismatches (591,045 of 761,838) have `total_amount` exactly
+  2.50 below the sum of the fee columns, i.e. the congestion surcharge is recorded in its column but not in
+  the total. It also fires on 80-92% of payment type 0 (flex fare) rows, where the fee column is NULL but the
+  total appears to include it. Vendor 2 is at 4-21%.
+- **R10 (passenger count) is NULL for 100% of payment type 0 (flex fare) rows.** Those rows grew from
+  140,162 (2024-01) to 916,663 (2025-03), which is why R10 rises from 5.8% to 22.7% of all rows. Outside flex
+  fares the field is invalid on about 1% of card and cash trips.
+- **A few absurd distances dominate the raw mean.** 2025-03 has 165 trips over 1,000 miles (max 320,136 mi)
+  that account for 13.8M of the 27.3M miles in the file. Raw average distance is 6.58 mi vs 3.28 mi trusted
+  (-50%); in 2024-01 it is 3.65 vs 3.23 mi.
+- **Error rules reject 4.2-8.1% of rows**, mostly negative fares (1.3% in 2024-01, 5.0% in 2025-03) and
+  non-positive distance (2.0-2.8%). Trusted revenue is 2.9-3.5% below raw revenue; average fare is 0.0-6.5%
+  higher after removing refunds, zero-distance and negative rows.
+- Impossible timestamps and durations are rare (R01-R04 together below 0.01% of rows). Exact duplicate rows:
+  0 in five of the six months, 1 in 2024-02.
+
+Design consequence: a first version treated every rule as an exclusion. That left only 58-71% of rows and
+removed almost all Vendor 1 and flex-fare trips, which would have biased every trusted metric. Rules that fire
+on a whole vendor or payment type are now warnings.
 
 ## Usage
 

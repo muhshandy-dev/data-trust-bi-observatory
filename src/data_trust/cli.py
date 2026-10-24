@@ -56,10 +56,11 @@ def cmd_validate(args, paths: Paths) -> int:
         rep = trust_report(paths.trip_file(month), month)
         print(
             f"{month}: {rep['rows']:,} rows, trusted {rep['trusted_rate']:.2%}, "
-            f"duplicates {rep['duplicate_rows']:,}"
+            f"clean {rep['clean_rate']:.2%}, duplicates {rep['duplicate_rows']:,}"
         )
         for r in rep["rules"]:
-            print(f"  {r['id']} {r['name']:<24} {r['violations']:>10,}  {r['rate']:.3%}")
+            flag = "warn" if r["severity"] == "warning" else "err "
+            print(f"  {r['id']} {flag} {r['name']:<24} {r['violations']:>10,}  {r['rate']:.3%}")
     return 0
 
 

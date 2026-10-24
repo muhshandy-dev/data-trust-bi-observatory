@@ -1,13 +1,14 @@
 """Row-level data-trust rules evaluated in DuckDB over a TLC Yellow Taxi Parquet file.
 
 ``register_trips`` exposes a view ``trips_flagged`` with normalized lower-case columns,
-one boolean flag per rule, and ``is_trusted`` (no rule fired). Both the trust report and the
+one boolean flag per rule, ``is_trusted`` (no error-severity rule fired) and ``is_clean`` (no
+rule at all fired, warnings included). Both the trust report and the
 BI aggregates query that single view, so the two can never disagree about what "trusted" means.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import duckdb
@@ -45,6 +46,19 @@ MAX_TRIP_MILES = 100
 MAX_SPEED_MPH = 80
 MAX_DURATION_MIN = 24 * 60
 AMOUNT_TOLERANCE = 0.011
+# Breakdown groups smaller than this share of the month's rows are left out of the report.
+BREAKDOWN_MIN_SHARE = 0.001
+
+
+# Rules that are reported but do not exclude a row. On real 2024-2025 files each one fires on a
+# large, systematic slice of otherwise valid trips, so excluding them would bias the trusted
+# subset instead of cleaning it:
+#   R10  passenger_count is NULL for every payment_type 0 (flex fare) trip, a column the vendor
+#        simply does not fill; it does not affect revenue, distance or duration metrics.
+#   R12  the parts do not reconcile with the total mostly for one vendor (congestion/CBD fee
+#        recorded in its column but not in total_amount) and for flex fares (fee in total_amount
+#        but NULL in its column). The rule is kept so the problem stays visible, per vendor.
+WARNING_RULES = frozenset({"R10", "R12"})
 
 
 class SchemaError(ValueError):
@@ -58,13 +72,16 @@ class Rule:
     description: str
     # SQL boolean expression over the columns of ``base`` (see _flagged_sql); NULL counts as pass.
     predicate: str
+    # "error": the row is impossible or unusable, so it is excluded from the trusted subset.
+    # "warning": reported, but the row stays trusted (see WARNING_RULES for why).
+    severity: str = "error"
 
 
 def build_rules(columns: set[str], month: str) -> list[Rule]:
     start, end = month_bounds(month)
     present = [c for c in AMOUNT_COMPONENTS if c in columns]
     amount_sum = " + ".join(f"coalesce({c}, 0)" for c in present)
-    return [
+    rules = [
         Rule(
             "R01",
             "missing_timestamp",
@@ -130,6 +147,7 @@ def build_rules(columns: set[str], month: str) -> list[Rule]:
             f"abs(total_amount - ({amount_sum})) > {AMOUNT_TOLERANCE}",
         ),
     ]
+    return [replace(r, severity="warning") if r.id in WARNING_RULES else r for r in rules]
 
 
 def _normalized_select(con: duckdb.DuckDBPyConnection, path: Path) -> tuple[str, set[str]]:
@@ -152,6 +170,7 @@ def register_trips(
     normalized, columns = _normalized_select(con, path)
     rules = build_rules(columns, month)
     flags = ",\n    ".join(f"coalesce(({r.predicate}), FALSE) AS {r.id.lower()}" for r in rules)
+    any_error = " OR ".join(r.id.lower() for r in rules if r.severity == "error")
     any_flag = " OR ".join(r.id.lower() for r in rules)
     con.execute(f"CREATE OR REPLACE VIEW trips AS {normalized}")
     con.execute(
@@ -166,28 +185,53 @@ def register_trips(
                 {flags}
             FROM base
         )
-        SELECT *, NOT ({any_flag}) AS is_trusted FROM flagged
+        SELECT *, NOT ({any_error}) AS is_trusted, NOT ({any_flag}) AS is_clean FROM flagged
         """
     )
     return rules, columns
+
+
+def _breakdown(con: duckdb.DuckDBPyConnection, rule: Rule, column: str, total: int) -> list[dict]:
+    """Violation rate of ``rule`` per value of ``column``, largest groups first."""
+    rows = con.execute(
+        f"""
+        SELECT {column}, count(*), count(*) FILTER (WHERE {rule.id.lower()})
+        FROM trips_flagged GROUP BY 1 ORDER BY 2 DESC
+        """
+    ).fetchall()
+    return [
+        {"key": k, "rows": int(n), "violations": int(v), "rate": round(v / n, 6) if n else 0.0}
+        for k, n, v in rows
+        if n and n / total >= BREAKDOWN_MIN_SHARE
+    ]
 
 
 def trust_report(path: Path, month: str) -> dict:
     """Violation counts per rule, duplicate rows, and the trusted share for one month file."""
     con = duckdb.connect()
     try:
-        rules, _ = register_trips(con, path, month)
+        rules, columns = register_trips(con, path, month)
         agg = ", ".join(f"count(*) FILTER (WHERE {r.id.lower()}) AS {r.id.lower()}" for r in rules)
         row = con.execute(
-            f"SELECT count(*), {agg}, count(*) FILTER (WHERE is_trusted) FROM trips_flagged"
+            f"SELECT count(*), {agg}, count(*) FILTER (WHERE is_trusted), "
+            "count(*) FILTER (WHERE is_clean) FROM trips_flagged"
         ).fetchone()
         total, *rest = row
-        counts, trusted = rest[:-1], rest[-1]
+        counts, trusted, clean = rest[:-2], rest[-2], rest[-1]
         # duplicate rows = rows that are exact copies of an earlier row (all columns equal)
         dup = con.execute(
             "SELECT (SELECT count(*) FROM trips) "
             "- (SELECT count(*) FROM (SELECT DISTINCT * FROM trips))"
         ).fetchone()[0]
+        # Where do the warning-rule violations concentrate? Only groups above a share threshold.
+        dims = [("vendor_id", "vendorid"), ("payment_type", "payment_type")]
+        breakdowns = [
+            {"rule": r.id, "by": label, "groups": _breakdown(con, r, col, total)}
+            for r in rules
+            if r.severity == "warning"
+            for label, col in dims
+            if col in columns
+        ]
     finally:
         con.close()
 
@@ -199,15 +243,19 @@ def trust_report(path: Path, month: str) -> dict:
         "rows": total,
         "trusted_rows": trusted,
         "trusted_rate": rate(trusted),
+        "clean_rows": clean,
+        "clean_rate": rate(clean),
         "duplicate_rows": int(dup),
         "rules": [
             {
                 "id": r.id,
                 "name": r.name,
                 "description": r.description,
+                "severity": r.severity,
                 "violations": int(n),
                 "rate": rate(n),
             }
             for r, n in zip(rules, counts, strict=True)
         ],
+        "breakdowns": breakdowns,
     }

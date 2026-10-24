@@ -5,6 +5,11 @@ const fmtInt = new Intl.NumberFormat("en-US");
 const fmtPct = (x, d = 2) => (x * 100).toFixed(d) + "%";
 const fmtUsd = (x) => "$" + x.toFixed(2);
 
+// Labels from the TLC Yellow Taxi data dictionary; unknown codes fall back to "code N".
+const VENDORS = { 1: "Creative Mobile Technologies", 2: "Curb Mobility", 6: "Myle Technologies", 7: "Helix" };
+const PAYMENTS = { 0: "Flex fare", 1: "Credit card", 2: "Cash", 3: "No charge", 4: "Dispute", 5: "Unknown", 6: "Voided" };
+const label = (by, key) => ((by === "vendor_id" ? VENDORS : PAYMENTS)[key] ?? "code " + key) + ` (${key})`;
+
 async function load(name) {
   const res = await fetch(`data/${name}`, { cache: "no-cache" });
   if (!res.ok) throw new Error(`${name}: HTTP ${res.status}`);
@@ -37,7 +42,8 @@ function table(headers, rows) {
 function renderTiles(report) {
   const tiles = [
     ["Rows in file", fmtInt.format(report.rows), "all rows, before any filtering"],
-    ["Trusted rows", fmtPct(report.trusted_rate), `${fmtInt.format(report.trusted_rows)} rows violate no rule`],
+    ["Trusted rows", fmtPct(report.trusted_rate), `${fmtInt.format(report.trusted_rows)} rows break no error rule`],
+    ["Fully clean rows", fmtPct(report.clean_rate), `${fmtInt.format(report.clean_rows)} rows trip no rule, warnings included`],
     ["Duplicate rows", fmtInt.format(report.duplicate_rows), "exact copies; reported, not yet excluded"],
   ];
   $("tiles").innerHTML = tiles
@@ -47,7 +53,7 @@ function renderTiles(report) {
 
 function renderRules(report) {
   const rules = [...report.rules].sort((a, b) => b.rate - a.rate);
-  const W = 720, rowH = 28, left = 190, right = 70, top = 4;
+  const W = 720, rowH = 28, left = 270, right = 70, top = 4;
   const H = top + rules.length * rowH + 4;
   const max = Math.max(...rules.map((r) => r.rate), 1e-9);
   const root = $("rules-chart");
@@ -56,12 +62,13 @@ function renderRules(report) {
   rules.forEach((r, i) => {
     const y = top + i * rowH;
     const w = Math.max((r.rate / max) * (W - left - right), r.violations ? 2 : 0);
-    el("text", { x: left - 8, y: y + 17, "text-anchor": "end" }, svg).textContent = `${r.id} ${r.name.replaceAll("_", " ")}`;
-    const bar = el("rect", { class: "bar", x: left, y: y + 4, width: w, height: 18, rx: 4, tabindex: 0 }, svg);
+    const warn = r.severity === "warning";
+    el("text", { x: left - 8, y: y + 17, "text-anchor": "end" }, svg).textContent = `${r.id} ${r.name.replaceAll("_", " ")}${warn ? " (warning)" : ""}`;
+    const bar = el("rect", { class: warn ? "bar warn" : "bar", x: left, y: y + 4, width: w, height: 18, rx: 4, tabindex: 0 }, svg);
     el("text", { x: left + w + 6, y: y + 17 }, svg).textContent = fmtPct(r.rate, 3);
     const tip = (e) => {
       const b = bar.getBoundingClientRect();
-      showTip(`<strong>${r.id} ${r.name.replaceAll("_", " ")}</strong><br>${r.description}<br>${fmtInt.format(r.violations)} rows (${fmtPct(r.rate, 3)})`, e.clientX || b.right, e.clientY || b.top);
+      showTip(`<strong>${r.id} ${r.name.replaceAll("_", " ")}</strong><br>${r.description}<br>${warn ? "Warning: reported, row stays trusted<br>" : ""}${fmtInt.format(r.violations)} rows (${fmtPct(r.rate, 3)})`, e.clientX || b.right, e.clientY || b.top);
     };
     bar.addEventListener("mousemove", tip);
     bar.addEventListener("focus", tip);
@@ -69,9 +76,16 @@ function renderRules(report) {
     bar.addEventListener("blur", hideTip);
   });
   $("rules-table").innerHTML = table(
-    ["Rule", "Description", "Violations", "Rate"],
-    rules.map((r) => [`${r.id} ${r.name}`, r.description, fmtInt.format(r.violations), fmtPct(r.rate, 3)]),
+    ["Rule", "Severity", "Description", "Violations", "Rate"],
+    rules.map((r) => [`${r.id} ${r.name}`, r.severity, r.description, fmtInt.format(r.violations), fmtPct(r.rate, 3)]),
   );
+}
+
+function renderBreakdowns(report) {
+  const rows = report.breakdowns.flatMap((b) =>
+    b.groups.map((g) => [`${b.rule}`, b.by === "vendor_id" ? "Vendor" : "Payment type", label(b.by, g.key), fmtInt.format(g.rows), fmtPct(g.rate, 1)]),
+  );
+  $("breakdown-table").innerHTML = table(["Rule", "Split by", "Group", "Rows", "Violation rate"], rows);
 }
 
 function renderMetrics(m) {
@@ -159,6 +173,7 @@ async function main() {
     const m = select.value;
     renderTiles(reports.find((r) => r.month === m));
     renderRules(reports.find((r) => r.month === m));
+    renderBreakdowns(reports.find((r) => r.month === m));
     renderMetrics(monthly.find((r) => r.month === m));
     renderDaily(daily.find((r) => r.month === m).days);
     renderMeta(meta, m);

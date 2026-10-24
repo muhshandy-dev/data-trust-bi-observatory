@@ -60,6 +60,7 @@ button { cursor: pointer; }
 .chart text { fill: var(--text-2); font-size: 12px; }
 .chart .grid { stroke: var(--grid); stroke-width: 1; }
 .chart .bar { fill: var(--series-1); }
+.chart .bar.warn { fill: var(--series-2); }
 .chart .bar:hover, .chart .bar:focus { opacity: .8; outline: none; }
 .chart .line-raw { stroke: var(--series-2); }
 .chart .line-trusted { stroke: var(--series-1); }

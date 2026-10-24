@@ -44,10 +44,25 @@ def test_report_counts_match_fixture(trip_file: Path, fixture_rows: list[dict]):
             expected[rid] = expected.get(rid, 0) + 1
     for rid, count in by_id.items():
         assert count == expected.get(rid, 0), rid
-    # 12 defective rows are untrusted; the 2 clean rows and the duplicate stay trusted.
-    assert report["trusted_rows"] == 3
+    # 9 rows break an error rule and are untrusted. The 3 rows that only break a warning rule
+    # (zero/null passengers, total mismatch) stay trusted; "clean" is the 2 clean rows + duplicate.
+    assert report["trusted_rows"] == 6
+    assert report["trusted_rate"] == pytest.approx(6 / 15, abs=1e-6)
+    assert report["clean_rows"] == 3
+    assert report["clean_rate"] == pytest.approx(3 / 15, abs=1e-6)
     assert report["duplicate_rows"] == 1
-    assert report["trusted_rate"] == pytest.approx(3 / 15, abs=1e-6)
+
+
+def test_warning_rules_are_reported_but_do_not_exclude(tmp_path: Path):
+    rows = [make_trip(passenger_count=None), make_trip(total_amount=99.0, VendorID=2), make_trip()]
+    report = trust_report(write_trips(tmp_path / "w.parquet", rows), MONTH)
+    sev = {r["id"]: r["severity"] for r in report["rules"]}
+    assert {i for i, v in sev.items() if v == "warning"} == {"R10", "R12"}
+    assert report["trusted_rows"] == 3 and report["clean_rows"] == 1
+    by_vendor = next(
+        b for b in report["breakdowns"] if b["rule"] == "R12" and b["by"] == "vendor_id"
+    )
+    assert {g["key"]: g["violations"] for g in by_vendor["groups"]} == {1: 0, 2: 1}
 
 
 def test_rates_are_fractions_of_total(trip_file: Path):

@@ -54,7 +54,11 @@ def test_build_is_deterministic(project: Path):
 def test_validate_prints_report(project: Path, capsys):
     assert main(["--root", str(project), "validate", "--months", MONTH]) == 0
     out = capsys.readouterr().out
-    assert "R02 dropoff_before_pickup" in out and "trusted 20.00%" in out
+    assert (
+        "R02 err  dropoff_before_pickup" in out
+        and "trusted 40.00%" in out
+        and "clean 20.00%" in out
+    )
 
 
 def test_missing_file_is_a_clean_error(tmp_path: Path, capsys):
@@ -137,10 +141,17 @@ def test_exported_json_has_the_fields_the_frontend_reads(project: Path):
         "rows",
         "trusted_rows",
         "trusted_rate",
+        "clean_rows",
+        "clean_rate",
         "duplicate_rows",
         "rules",
+        "breakdowns",
     } <= report.keys()
-    assert {"id", "name", "description", "violations", "rate"} <= report["rules"][0].keys()
+    assert {"id", "name", "description", "severity", "violations", "rate"} <= report["rules"][
+        0
+    ].keys()
+    assert {"rule", "by", "groups"} <= report["breakdowns"][0].keys()
+    assert {"key", "rows", "violations", "rate"} <= report["breakdowns"][0]["groups"][0].keys()
 
     metrics = load("metrics_monthly.json")[0]
     assert {"month", "raw", "trusted"} <= metrics.keys()

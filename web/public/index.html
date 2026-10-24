@@ -28,14 +28,20 @@
 
     <section class="card">
       <h2>Which rules reject the most rows?</h2>
-      <p class="note">Share of the month's rows violating each rule. A row can violate several rules, so bars do not add up to the rejected share.</p>
+      <p class="note">Share of the month's rows violating each rule. A row can violate several rules, so bars do not add up to the rejected share. Error rules exclude a row from the trusted subset; warning rules (orange) are reported but keep the row.</p>
       <div id="rules-chart" class="chart"></div>
       <details><summary>Show as table</summary><div id="rules-table"></div></details>
     </section>
 
     <section class="card">
+      <h2>Where do the warnings concentrate?</h2>
+      <p class="note">Violation rate of each warning rule inside each vendor and payment type (groups under 0.1% of rows omitted). A rate near 100% points at how a source records the field, not at random errors.</p>
+      <div id="breakdown-table"></div>
+    </section>
+
+    <section class="card">
       <h2>How much do metrics move when untrusted rows are removed?</h2>
-      <p class="note">Scope: trips with a pickup inside the month. "Raw" keeps every such row; "Trusted" keeps rows that violate no rule.</p>
+      <p class="note">Scope: trips with a pickup inside the month. "Raw" keeps every such row; "Trusted" keeps rows that break no error-severity rule.</p>
       <div id="metrics-table"></div>
     </section>
 

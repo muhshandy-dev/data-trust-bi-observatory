@@ -98,16 +98,18 @@ make check                        # ruff + pytest with coverage
 
 `web/public` is plain HTML/CSS/ES modules (no framework, no build step, so Cloudflare Pages deploys do
 not spend build minutes). `index.html` sits at the root of the published output. The interface is in
-Indonesian (number format `4.145.257`, `92,23%`; month names such as "Maret 2025") and is organised as
-an analytics workspace:
+plain Indonesian for non-technical readers (number format `4.145.257`, `92,23%`; month names such as
+"Maret 2025"). Error-severity rules are shown as "masalah kritis", warning-severity rules as
+"masalah ringan", and rule codes (R01..R12) are secondary labels. A test keeps tool names, column
+names and words such as rule/warning/error out of the visible copy. The page is organised as:
 
-- a collapsible sidebar (off-canvas drawer below 1024 px) with Ringkasan, Kualitas Data, Pemeriksaan
-  Aturan, Analisis Perjalanan, Metodologi and Keterbatasan, and a header with a month picker and a
+- a collapsible sidebar (off-canvas drawer below 1024 px) with Ringkasan, Kualitas Data, Hasil
+  Pemeriksaan, Analisis Perjalanan, Metodologi and Keterbatasan, and a header with a month picker and a
   light/dark toggle;
 - four KPI cards (total rows, rows passing critical checks, rows with no rule finding, duplicate rows),
-  each with a methodology tooltip, plus a row classification bar and findings computed from the JSON;
-- month-to-month quality (100% stacked columns, clickable), a rule x month violation pattern table, a
-  searchable and filterable rules table with per-vendor / per-payment-type drill-down for warning rules;
+  each with a methodology tooltip, plus a row classification bar and plain-language findings computed from the JSON;
+- month-to-month quality (100% stacked columns, clickable), a collapsed rule x month pattern table, and
+  an accordion of the 12 checks (filter Kritis / Ringan) with per-vendor / per-payment drill-down for warning rules;
 - raw vs post-check metrics, daily trips, a weekday x hour heatmap, payment types and a searchable
   pickup-zone table filtered by borough;
 - methodology (source, period, critical vs warning rules, quality categories) and limitations.

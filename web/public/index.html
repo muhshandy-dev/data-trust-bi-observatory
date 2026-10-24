@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Data Trust &amp; BI Observatory · Kualitas Data NYC TLC</title>
-<meta name="description" content="Audit kualitas data tingkat baris dan metrik BI yang disesuaikan dengan hasil pemeriksaan, atas enam bulan data perjalanan NYC TLC Yellow Taxi asli.">
+<title>Data Trust Observatory · Kualitas Data Taksi NYC</title>
+<meta name="description" content="Seberapa layak data perjalanan taksi kuning New York City untuk dianalisis, dan apa dampaknya pada angka utama.">
 <meta name="color-scheme" content="light dark">
-<meta property="og:title" content="Data Trust &amp; BI Observatory">
-<meta property="og:description" content="Audit kualitas data dan metrik BI atas 20,8 juta baris data perjalanan NYC TLC Yellow Taxi.">
+<meta property="og:title" content="Data Trust Observatory">
+<meta property="og:description" content="Kualitas 20,8 juta data perjalanan taksi kuning New York City dan dampaknya pada analisis.">
 <meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230B1220'/%3E%3Cpath d='M9 17l4.5 4.5L23 11' fill='none' stroke='%2310B981' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="preload" href="assets/fonts/inter-latin-wght.woff2" as="font" type="font/woff2" crossorigin>
@@ -20,7 +20,7 @@
   <aside class="sidebar" id="sidebar" aria-label="Navigasi utama">
     <div class="brand">
       <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8"/><path d="M9 17l4.5 4.5L23 11"/></svg>
-      <div class="brand-text"><span class="brand-name">Data Trust</span><span class="brand-sub">BI Observatory</span></div>
+      <div class="brand-text"><span class="brand-name">Data Trust</span><span class="brand-sub">Observatory</span></div>
       <button class="icon-btn sidebar-close" id="sidebar-close" type="button" aria-label="Tutup navigasi"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-x"/></svg></button>
     </div>
     <nav class="nav">
@@ -28,10 +28,10 @@
       <ul>
         <li><a class="nav-link" href="#ringkasan" data-section="ringkasan" title="Ringkasan"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-layout-dashboard"/></svg><span class="nav-text">Ringkasan</span></a></li>
         <li><a class="nav-link" href="#kualitas" data-section="kualitas" title="Kualitas Data"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-shield-check"/></svg><span class="nav-text">Kualitas Data</span></a></li>
-        <li><a class="nav-link" href="#aturan" data-section="aturan" title="Pemeriksaan Aturan"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-list-checks"/></svg><span class="nav-text">Pemeriksaan Aturan</span></a></li>
+        <li><a class="nav-link" href="#pemeriksaan" data-section="pemeriksaan" title="Hasil Pemeriksaan"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-list-checks"/></svg><span class="nav-text">Hasil Pemeriksaan</span></a></li>
         <li><a class="nav-link" href="#perjalanan" data-section="perjalanan" title="Analisis Perjalanan"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-car-taxi-front"/></svg><span class="nav-text">Analisis Perjalanan</span></a></li>
       </ul>
-      <p class="nav-heading">Dokumentasi</p>
+      <p class="nav-heading">Tentang Data</p>
       <ul>
         <li><a class="nav-link" href="#metodologi" data-section="metodologi" title="Metodologi"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-book-open"/></svg><span class="nav-text">Metodologi</span></a></li>
         <li><a class="nav-link" href="#keterbatasan" data-section="keterbatasan" title="Keterbatasan"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-triangle-alert"/></svg><span class="nav-text">Keterbatasan</span></a></li>
@@ -47,7 +47,7 @@
   <div class="main-col">
     <header class="topbar">
       <button class="icon-btn menu-btn" id="menu" type="button" aria-label="Buka navigasi" aria-controls="sidebar" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-menu"/></svg></button>
-      <div class="crumb"><span class="crumb-root">Observatory</span><svg class="icon icon-sm" aria-hidden="true"><use href="assets/icons.svg#i-chevron-right"/></svg><span id="crumb">Ringkasan</span></div>
+      <div class="crumb"><span class="crumb-root">Dashboard</span><svg class="icon icon-sm" aria-hidden="true"><use href="assets/icons.svg#i-chevron-right"/></svg><span id="crumb">Ringkasan</span></div>
       <div class="topbar-actions">
         <label class="select-wrap" for="month">
           <svg class="icon icon-sm" aria-hidden="true"><use href="assets/icons.svg#i-calendar"/></svg>
@@ -62,62 +62,45 @@
     <main id="main" tabindex="-1">
       <section class="hero" aria-labelledby="page-title">
         <div class="hero-main">
-          <p class="eyebrow"><span class="pulse" aria-hidden="true"></span>Data observability · NYC TLC Yellow Taxi</p>
-          <h1 id="page-title">Data Trust &amp; BI Observatory</h1>
-          <p class="lead">Seberapa layak data perjalanan taksi NYC dipakai untuk analisis, dan seberapa besar metrik bisnis berubah setelah baris yang gagal pemeriksaan kritis dikeluarkan. Dua belas aturan validasi diterapkan pada setiap baris dengan DuckDB.</p>
-          <ul class="chips" id="chips">
-            <li class="chip"><svg class="icon icon-sm" aria-hidden="true"><use href="assets/icons.svg#i-calendar"/></svg><span id="chip-period">Memuat periode…</span></li>
-            <li class="chip chip-ok"><svg class="icon icon-sm" aria-hidden="true"><use href="assets/icons.svg#i-file-check"/></svg><span id="chip-status">Memeriksa status data…</span></li>
-          </ul>
+          <p class="eyebrow">Taksi kuning New York City</p>
+          <h1 id="page-title">Seberapa layak data taksi NYC untuk dianalisis?</h1>
+          <p class="lead">Dashboard ini menunjukkan kualitas data perjalanan taksi dan dampaknya terhadap hasil analisis. Setiap perjalanan diperiksa dengan 12 aturan kualitas.</p>
+          <p class="hero-meta"><svg class="icon icon-sm" aria-hidden="true"><use href="assets/icons.svg#i-calendar"/></svg><span id="chip-period">Memuat periode…</span></p>
         </div>
         <aside class="hero-panel" aria-labelledby="scope-title">
-          <div class="hero-panel-head">
-            <p id="scope-title">Cakupan audit</p>
-            <span class="badge badge-ok"><svg class="icon icon-xs" aria-hidden="true"><use href="assets/icons.svg#i-circle-check"/></svg>JSON statis dari pipeline</span>
-          </div>
-          <dl class="scope" id="scope">
-            <div><dt>Baris diperiksa</dt><dd id="scope-rows">…</dd></div>
-            <div><dt>Bulan</dt><dd id="scope-months">…</dd></div>
-            <div><dt>Aturan validasi</dt><dd id="scope-rules">…</dd></div>
-          </dl>
-          <p class="spark-title">Lolos pemeriksaan kritis per bulan</p>
+          <p class="hero-panel-title" id="scope-title">Lolos pemeriksaan per bulan</p>
           <div class="spark" id="spark"></div>
+          <dl class="scope" id="scope">
+            <div><dt>Perjalanan diperiksa</dt><dd id="scope-rows">…</dd></div>
+            <div><dt>Bulan</dt><dd id="scope-months">…</dd></div>
+            <div><dt>Pemeriksaan</dt><dd id="scope-rules">…</dd></div>
+          </dl>
         </aside>
       </section>
-
-      <nav class="journey" aria-label="Alur eksplorasi">
-        <a class="journey-step" href="#ringkasan"><span class="journey-num">01</span><span class="journey-q">Seberapa banyak data lolos pemeriksaan?</span><span class="journey-a" id="j1">…</span></a>
-        <a class="journey-step" href="#aturan"><span class="journey-num">02</span><span class="journey-q">Aturan mana yang paling sering terpicu?</span><span class="journey-a" id="j2">…</span></a>
-        <a class="journey-step" href="#perjalanan"><span class="journey-num">03</span><span class="journey-q">Seberapa besar metrik bisnis berubah?</span><span class="journey-a" id="j3">…</span></a>
-      </nav>
 
       <div id="status" class="state" role="status" aria-live="polite">
         <div class="skeleton-grid" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
         <div class="skeleton-block" aria-hidden="true"></div>
-        <p class="sr-only">Memuat data dashboard…</p>
+        <p class="sr-only">Memuat dashboard…</p>
       </div>
 
       <div id="content" hidden>
         <!-- RINGKASAN -->
         <section class="section" id="ringkasan" aria-labelledby="h-ringkasan">
           <div class="section-head">
-            <div>
-              <h2 id="h-ringkasan">Ringkasan</h2>
-              <p class="section-sub">Indikator utama untuk <strong class="month-label"></strong>. Pilih bulan lain di bagian atas halaman.</p>
-            </div>
+            <h2 id="h-ringkasan">Ringkasan</h2>
+            <p class="section-sub">Kondisi data <strong class="month-label"></strong>.</p>
           </div>
           <div class="kpis" id="kpis"></div>
           <div class="grid-2">
             <article class="card">
-              <header class="card-head">
-                <div><h3>Klasifikasi Kualitas Baris</h3><p class="card-sub">Setiap baris masuk tepat satu kategori.</p></div>
-              </header>
+              <h3>Komposisi Data</h3>
+              <p class="card-sub">Setiap perjalanan masuk ke satu kelompok.</p>
               <div id="class-bar"></div>
             </article>
             <article class="card">
-              <header class="card-head">
-                <div><h3>Temuan Utama Bulan Ini</h3><p class="card-sub">Dihitung langsung dari hasil pemeriksaan bulan terpilih.</p></div>
-              </header>
+              <h3>Yang Perlu Diketahui</h3>
+              <p class="card-sub">Masalah utama dan dampaknya pada analisis.</p>
               <ul class="facts" id="facts"></ul>
             </article>
           </div>
@@ -126,114 +109,89 @@
         <!-- KUALITAS DATA -->
         <section class="section" id="kualitas" aria-labelledby="h-kualitas">
           <div class="section-head">
-            <div>
-              <h2 id="h-kualitas">Kualitas Data</h2>
-              <p class="section-sub">Perbandingan antarbulan. Data April sampai Desember 2024 tidak termasuk dalam analisis.</p>
-            </div>
+            <h2 id="h-kualitas">Kualitas Data</h2>
+            <p class="section-sub">Perbandingan enam bulan. April sampai Desember 2024 tidak termasuk.</p>
           </div>
           <article class="card">
             <header class="card-head">
-              <div><h3>Bagaimana Kualitas Data Berubah Setiap Bulan?</h3><p class="card-sub">Proporsi baris per kategori kualitas. Klik kolom untuk memilih bulan.</p></div>
+              <div><h3>Bagaimana Kualitas Data Berubah Setiap Bulan?</h3><p class="card-sub">Pilih kolom untuk melihat bulan tersebut.</p></div>
               <ul class="legend" id="class-legend"></ul>
             </header>
             <div id="class-chart" class="chart"></div>
-            <details class="table-toggle"><summary>Tampilkan sebagai tabel</summary><div id="class-table"></div></details>
-          </article>
-          <article class="card">
-            <header class="card-head">
-              <div><h3>Perubahan Pola Pelanggaran per Aturan</h3><p class="card-sub">Persentase baris yang melanggar setiap aturan. Warna lebih pekat berarti persentase lebih tinggi dalam baris aturan tersebut.</p></div>
-            </header>
-            <p class="scroll-hint">Geser tabel ke samping untuk melihat bulan lain.</p>
-            <div id="pattern-table"></div>
+            <details class="table-toggle"><summary>Lihat angka per bulan</summary><div id="class-table"></div></details>
+            <details class="table-toggle"><summary>Lihat tren per jenis pemeriksaan</summary>
+              <p class="card-note">Warna lebih pekat berarti masalah lebih sering ditemukan.</p>
+              <div id="pattern-table"></div>
+            </details>
           </article>
         </section>
 
-        <!-- PEMERIKSAAN ATURAN -->
-        <section class="section" id="aturan" aria-labelledby="h-aturan">
+        <!-- HASIL PEMERIKSAAN -->
+        <section class="section" id="pemeriksaan" aria-labelledby="h-pemeriksaan">
           <div class="section-head">
-            <div>
-              <h2 id="h-aturan">Pemeriksaan Aturan</h2>
-              <p class="section-sub">Hasil 12 aturan validasi untuk <strong class="month-label"></strong>. Satu baris dapat melanggar lebih dari satu aturan.</p>
-            </div>
+            <h2 id="h-pemeriksaan">Hasil Pemeriksaan</h2>
+            <p class="section-sub">12 pemeriksaan untuk <strong class="month-label"></strong>. Satu perjalanan bisa memiliki lebih dari satu temuan.</p>
           </div>
           <article class="card">
-            <header class="card-head">
-              <div><h3>Distribusi Pelanggaran Aturan</h3><p class="card-sub">Persentase baris yang melanggar, diurutkan dari yang terbesar.</p></div>
-              <ul class="legend"><li><i class="sw sw-critical"></i>Kritis</li><li><i class="sw sw-warning"></i>Peringatan</li></ul>
-            </header>
-            <div id="rules-chart"></div>
-          </article>
-          <article class="card">
-            <header class="card-head">
-              <div><h3>Ringkasan Aturan Validasi</h3><p class="card-sub">Buka baris untuk melihat definisi dan rincian per vendor atau jenis pembayaran.</p></div>
-            </header>
             <div class="toolbar">
-              <label class="search">
-                <svg class="icon icon-sm" aria-hidden="true"><use href="assets/icons.svg#i-search"/></svg>
-                <span class="sr-only">Cari aturan</span>
-                <input id="rule-search" type="search" placeholder="Cari kode atau nama aturan" autocomplete="off">
-              </label>
-              <div class="segmented" role="group" aria-label="Filter tingkat aturan" id="rule-filter">
+              <div class="segmented" role="group" aria-label="Tampilkan pemeriksaan" id="rule-filter">
                 <button type="button" data-value="all" aria-pressed="true">Semua</button>
                 <button type="button" data-value="error" aria-pressed="false">Kritis</button>
-                <button type="button" data-value="warning" aria-pressed="false">Peringatan</button>
+                <button type="button" data-value="warning" aria-pressed="false">Ringan</button>
               </div>
-              <p class="toolbar-count" id="rule-count" aria-live="polite"></p>
+              <ul class="legend legend-explain">
+                <li><i class="sw sw-bad"></i><span><b>Kritis</b>: dikeluarkan dari analisis</span></li>
+                <li><i class="sw sw-warn"></i><span><b>Ringan</b>: tetap dipakai, dicatat</span></li>
+              </ul>
             </div>
-            <div id="rules-table"></div>
+            <ul class="checks" id="checks"></ul>
           </article>
         </section>
 
         <!-- ANALISIS PERJALANAN -->
         <section class="section" id="perjalanan" aria-labelledby="h-perjalanan">
           <div class="section-head">
-            <div>
-              <h2 id="h-perjalanan">Analisis Perjalanan</h2>
-              <p class="section-sub">Metrik perjalanan <strong class="month-label"></strong>. Cakupan: perjalanan dengan waktu jemput di dalam bulan tersebut.</p>
-            </div>
+            <h2 id="h-perjalanan">Analisis Perjalanan</h2>
+            <p class="section-sub">Perjalanan <strong class="month-label"></strong>, dihitung dari data yang lolos pemeriksaan.</p>
           </div>
           <article class="card">
-            <header class="card-head">
-              <div><h3>Metrik Mentah dan Setelah Pemeriksaan Kritis</h3><p class="card-sub">"Mentah" memakai semua baris. "Lolos kritis" hanya memakai baris tanpa pelanggaran aturan kritis.</p></div>
-            </header>
+            <h3>Dampak Pemeriksaan pada Angka Utama</h3>
+            <p class="card-sub">Perbandingan semua data dengan data yang lolos pemeriksaan.</p>
             <div id="metrics"></div>
           </article>
           <article class="card">
             <header class="card-head">
-              <div><h3>Tren Perjalanan Harian</h3><p class="card-sub">Arahkan kursor, ketuk, atau gunakan tombol panah setelah memilih grafik.</p></div>
-              <ul class="legend"><li><i class="sw sw-raw"></i>Mentah</li><li><i class="sw sw-trusted"></i>Lolos kritis</li></ul>
+              <div><h3>Perjalanan per Hari</h3><p class="card-sub">Arahkan kursor atau ketuk grafik untuk melihat detail.</p></div>
+              <ul class="legend"><li><i class="sw sw-raw"></i>Semua data</li><li><i class="sw sw-trusted"></i>Lolos pemeriksaan</li></ul>
             </header>
             <div id="daily-chart" class="chart"></div>
-            <details class="table-toggle"><summary>Tampilkan sebagai tabel</summary><div id="daily-table"></div></details>
+            <details class="table-toggle"><summary>Lihat tabel harian</summary><div id="daily-table"></div></details>
           </article>
           <div class="grid-2 grid-2-wide">
             <article class="card">
-              <header class="card-head">
-                <div><h3>Pola Hari dan Jam</h3><p class="card-sub">Perjalanan lolos kritis menurut hari dan jam penjemputan, waktu lokal sesuai data TLC.</p></div>
-              </header>
+              <h3>Waktu Tersibuk</h3>
+              <p class="card-sub">Jumlah perjalanan menurut hari dan jam jemput.</p>
               <div id="heatmap" class="chart"></div>
-              <details class="table-toggle"><summary>Tampilkan jam tersibuk</summary><div id="heatmap-table"></div></details>
+              <details class="table-toggle"><summary>Lihat 8 jam tersibuk</summary><div id="heatmap-table"></div></details>
             </article>
             <article class="card">
-              <header class="card-head">
-                <div><h3>Jenis Pembayaran</h3><p class="card-sub">Porsi perjalanan lolos kritis per kategori pembayaran.</p></div>
-              </header>
+              <h3>Cara Pembayaran</h3>
+              <p class="card-sub">Porsi perjalanan per cara bayar.</p>
               <div id="payments"></div>
             </article>
           </div>
           <article class="card">
-            <header class="card-head">
-              <div><h3>Zona Penjemputan</h3><p class="card-sub">Tip dihitung sebagai tip dibagi tarif, hanya untuk pembayaran kartu kredit karena tip tunai tidak tercatat.</p></div>
-            </header>
-            <div class="toolbar">
+            <h3>Zona Jemput</h3>
+            <p class="card-sub">Tip dihitung hanya untuk pembayaran kartu kredit.</p>
+            <div class="toolbar toolbar-top">
               <label class="search">
                 <svg class="icon icon-sm" aria-hidden="true"><use href="assets/icons.svg#i-search"/></svg>
                 <span class="sr-only">Cari zona</span>
                 <input id="zone-search" type="search" placeholder="Cari zona, misalnya JFK" autocomplete="off">
               </label>
               <label class="select-wrap select-inline" for="zone-borough">
-                <span class="sr-only">Filter borough</span>
-                <select id="zone-borough"><option value="">Semua borough</option></select>
+                <span class="sr-only">Pilih wilayah</span>
+                <select id="zone-borough"><option value="">Semua wilayah</option></select>
                 <svg class="icon icon-sm select-caret" aria-hidden="true"><use href="assets/icons.svg#i-chevron-down"/></svg>
               </label>
               <p class="toolbar-count" id="zone-count" aria-live="polite"></p>
@@ -246,82 +204,62 @@
         <!-- METODOLOGI -->
         <section class="section" id="metodologi" aria-labelledby="h-metodologi">
           <div class="section-head">
-            <div>
-              <h2 id="h-metodologi">Metodologi</h2>
-              <p class="section-sub">Cara data diambil, diperiksa, dan diringkas sebelum ditampilkan.</p>
-            </div>
+            <h2 id="h-metodologi">Metodologi</h2>
+            <p class="section-sub">Cara data diperiksa sebelum ditampilkan.</p>
           </div>
-          <article class="card">
-            <header class="card-head"><div><h3>Alur Pipeline</h3><p class="card-sub">Seluruh pemrosesan berjalan offline. Situs ini hanya menyajikan file JSON statis hasil pipeline.</p></div></header>
-            <ol class="flow">
-              <li><span class="flow-step">1</span><div><strong>Ingest</strong><p>Unduh file Parquet resmi TLC, catat ukuran, jumlah baris, dan SHA-256 di manifest.</p></div></li>
-              <li><span class="flow-step">2</span><div><strong>Validasi</strong><p>DuckDB menandai setiap baris dengan 12 aturan dalam satu view, sehingga laporan dan agregat memakai definisi yang sama.</p></div></li>
-              <li><span class="flow-step">3</span><div><strong>Agregasi</strong><p>Metrik mentah dan metrik lolos kritis dihitung per bulan, hari, jam, zona, dan jenis pembayaran.</p></div></li>
-              <li><span class="flow-step">4</span><div><strong>Publikasi</strong><p>Hasil diekspor ke JSON berukuran kecil, diuji konsistensinya, lalu disajikan Cloudflare Pages.</p></div></li>
-            </ol>
-          </article>
+          <ol class="flow">
+            <li><span class="flow-step">1</span><div><strong>Ambil data resmi</strong><p>Data perjalanan diunduh langsung dari situs NYC TLC.</p></div></li>
+            <li><span class="flow-step">2</span><div><strong>Periksa setiap perjalanan</strong><p>12 aturan kualitas diterapkan pada setiap perjalanan.</p></div></li>
+            <li><span class="flow-step">3</span><div><strong>Kelompokkan hasil</strong><p>Perjalanan dibagi menjadi tanpa temuan, masalah ringan, atau masalah kritis.</p></div></li>
+            <li><span class="flow-step">4</span><div><strong>Hitung ringkasan</strong><p>Angka dihitung untuk semua data dan untuk data yang lolos pemeriksaan.</p></div></li>
+          </ol>
           <div class="grid-3">
             <article class="card category ok">
-              <h3><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-badge-check"/></svg>Tanpa Temuan Aturan</h3>
-              <p>Baris tidak memicu satu pun dari 12 aturan, termasuk aturan peringatan. Ini kategori paling ketat.</p>
+              <h3><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-badge-check"/></svg>Tanpa Temuan</h3>
+              <p>Lolos semua 12 pemeriksaan.</p>
             </article>
             <article class="card category warn">
-              <h3><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-circle-alert"/></svg>Hanya Peringatan</h3>
-              <p>Baris hanya melanggar aturan peringatan (R10 atau R12). Baris tetap dipakai dalam metrik lolos kritis.</p>
+              <h3><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-circle-alert"/></svg>Masalah Ringan</h3>
+              <p>Misalnya jumlah penumpang tidak tercatat. Tetap dipakai, karena membuangnya akan menghapus hampir semua data dari satu penyedia atau cara bayar.</p>
             </article>
             <article class="card category bad">
-              <h3><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-octagon-alert"/></svg>Gagal Pemeriksaan Kritis</h3>
-              <p>Baris melanggar minimal satu aturan kritis, misalnya jarak 0 atau tarif negatif, dan dikeluarkan dari metrik lolos kritis.</p>
+              <h3><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-octagon-alert"/></svg>Masalah Kritis</h3>
+              <p>Nilai yang tidak mungkin, misalnya jarak nol atau tarif negatif. Dikeluarkan dari analisis.</p>
             </article>
           </div>
-          <div class="grid-2">
-            <article class="card prose">
-              <h3>Aturan Kritis dan Peringatan</h3>
-              <p><strong>Kritis</strong> (R01 sampai R09, R11) menandai nilai yang mustahil atau tidak dapat dipakai, seperti waktu turun sebelum waktu jemput atau zona placeholder.</p>
-              <p><strong>Peringatan</strong> (R10, R12) tetap dilaporkan, tetapi tidak mengeluarkan baris. Pada data asli, kedua aturan ini terpicu pada hampir seluruh baris vendor atau jenis pembayaran tertentu. Mengeluarkannya akan membuang sebagian besar perjalanan Vendor 1 dan flex fare, sehingga metrik menjadi bias.</p>
-            </article>
-            <article class="card prose">
-              <h3>Sumber dan Periode Data</h3>
-              <p>Data perjalanan NYC Taxi &amp; Limousine Commission (TLC), Yellow Taxi, diunduh dari host resmi TLC. Periode: <span id="period-text">enam bulan</span>.</p>
-              <p><a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page" rel="noopener">Halaman TLC Trip Record Data<svg class="icon icon-xs" aria-hidden="true"><use href="assets/icons.svg#i-external-link"/></svg></a></p>
-            </article>
-          </div>
-          <article class="card">
-            <header class="card-head"><div><h3>File Sumber</h3><p class="card-sub">Checksum memastikan angka di dashboard dapat ditelusuri ke file yang sama.</p></div></header>
-            <div id="sources-table"></div>
+          <article class="card source">
+            <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#i-database"/></svg>
+            <p>Sumber: NYC Taxi &amp; Limousine Commission (TLC), taksi kuning, periode <span id="period-text">enam bulan</span>. <a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page" rel="noopener">Lihat sumber data<svg class="icon icon-xs" aria-hidden="true"><use href="assets/icons.svg#i-external-link"/></svg></a></p>
           </article>
         </section>
 
         <!-- KETERBATASAN -->
         <section class="section" id="keterbatasan" aria-labelledby="h-keterbatasan">
           <div class="section-head">
-            <div>
-              <h2 id="h-keterbatasan">Keterbatasan</h2>
-              <p class="section-sub">Hal yang perlu diketahui sebelum memakai angka di halaman ini.</p>
-            </div>
+            <h2 id="h-keterbatasan">Keterbatasan</h2>
+            <p class="section-sub">Perlu diingat saat membaca angka di halaman ini.</p>
           </div>
           <ul class="limits">
-            <li class="card"><h3>Tidak ada ground truth</h3><p>Tidak ada label baris yang dipastikan benar atau salah, sehingga tidak ada precision atau recall. Yang dilaporkan adalah jumlah pelanggaran aturan.</p></li>
-            <li class="card"><h3>Aturan bersifat heuristik</h3><p>Ambang batas 100 mil, 80 mph, 24 jam, dan 6 penumpang adalah pilihan desain. Mengubah ambang akan mengubah hasil.</p></li>
-            <li class="card"><h3>Lolos tidak berarti benar</h3><p>Baris yang lolos semua aturan tetap bisa salah. Indikator di sini menunjukkan tidak ditemukannya masalah oleh aturan, bukan kebenaran data.</p></li>
-            <li class="card"><h3>Cakupan terbatas</h3><p>Hanya Yellow Taxi, enam bulan. Tidak ada klaim untuk green taxi, for-hire vehicle, atau periode lain.</p></li>
-            <li class="card"><h3>Definisi pendapatan</h3><p>Pendapatan adalah jumlah total_amount, termasuk tip, pajak, dan surcharge. Ini bukan pendapatan pengemudi.</p></li>
-            <li class="card"><h3>Duplikat dan zona waktu</h3><p>Baris duplikat dihitung tetapi belum dikeluarkan. Waktu dipakai apa adanya tanpa konversi zona waktu.</p></li>
-            <li class="card"><h3>Verifikasi</h3><p>Angka dihitung ulang dari file Parquet dengan kueri SQL terpisah dan cocok untuk enam bulan. Pemeriksa ditulis oleh penulis yang sama, jadi ini pemeriksaan silang, bukan audit independen.</p></li>
+            <li><h3>Lolos belum tentu benar</h3><p>Pemeriksaan hanya menemukan masalah yang dicari. Data yang lolos tetap bisa keliru.</p></li>
+            <li><h3>Tidak ada data pembanding</h3><p>Tidak ada daftar resmi data yang benar atau salah, jadi ketepatan pemeriksaan tidak bisa diukur.</p></li>
+            <li><h3>Batas aturan adalah pilihan</h3><p>Batas seperti 100 mil, 80 mph, 24 jam, dan 6 penumpang ditetapkan oleh pembuat dashboard. Batas lain akan memberi hasil berbeda.</p></li>
+            <li><h3>Cakupan terbatas</h3><p>Hanya taksi kuning NYC selama enam bulan. Tidak berlaku untuk layanan atau periode lain.</p></li>
+            <li><h3>Pendapatan bukan penghasilan sopir</h3><p>Pendapatan mencakup tip, pajak, dan biaya tambahan yang dibayar penumpang.</p></li>
+            <li><h3>Duplikat belum dihapus</h3><p>Data duplikat dihitung, tetapi tetap ada dalam analisis. Jam dipakai sesuai catatan asli.</p></li>
           </ul>
         </section>
       </div>
     </main>
 
     <footer class="footer">
-      <p>Data: NYC Taxi &amp; Limousine Commission. Font Inter (SIL OFL 1.1), ikon Lucide (ISC).</p>
-      <p><a href="https://github.com/muhshandy-dev/data-trust-bi-observatory" rel="noopener">Kode sumber, pengujian, dan temuan lengkap di GitHub</a></p>
+      <p>Sumber data: NYC Taxi &amp; Limousine Commission.</p>
+      <p><a href="https://github.com/muhshandy-dev/data-trust-bi-observatory" rel="noopener">Kode dan dokumentasi teknis di GitHub</a></p>
     </footer>
   </div>
 </div>
 
 <div id="tip" class="tip" role="tooltip" hidden></div>
-<noscript><p class="noscript">Dashboard ini memerlukan JavaScript untuk menampilkan grafik. Data mentah berbentuk JSON tersedia di folder <code>/data/</code>.</p></noscript>
+<noscript><p class="noscript">Aktifkan JavaScript untuk melihat dashboard ini.</p></noscript>
 <script type="module" src="app.js"></script>
 </body>
 </html>

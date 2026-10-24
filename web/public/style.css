@@ -113,8 +113,10 @@ button, input, select { font: inherit; color: inherit; }
 }
 .brand { display: flex; align-items: center; gap: 10px; padding: 4px 6px 14px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
 .brand-mark { width: 34px; height: 34px; flex: none; }
-.brand-mark rect { fill: var(--brand); }
-.brand-mark path { fill: none; stroke: var(--brand-accent); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
+.brand-mark .bg { fill: var(--brand); }
+.brand-mark .bar { fill: var(--brand-accent); }
+.brand-mark .b1 { fill: #a7f3d0; fill-opacity: .55; }
+.brand-mark .b2 { fill: #34d399; fill-opacity: .8; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .brand-name { font-weight: 700; font-size: .98rem; letter-spacing: -.01em; }
 .brand-sub { font-size: .76rem; color: var(--muted); }
